@@ -1,0 +1,59 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 848409ee8ba454f42a5ddff137688a27, type: 3}
+  m_Name: ReferenceImageLibrary
+  m_EditorClassIdentifier: 
+  m_GuidLow: 4760433968458991018
+  m_GuidHigh: 6195605024881303741
+  m_DataStore:
+    m_Storage: []
+  m_Images:
+  - m_SerializedGuid:
+      m_GuidLow: 5432829255471929828
+      m_GuidHigh: 13578833234265999762
+    m_SerializedTextureGuid:
+      m_GuidLow: 658697746187988139
+      m_GuidHigh: 17196221001812781531
+    m_Size: {x: 0.16, y: 0.11061564}
+    m_SpecifySize: 1
+    m_Name: ParentFabVideo-1
+    m_Texture: {fileID: 0}
+  - m_SerializedGuid:
+      m_GuidLow: 4721715246444910346
+      m_GuidHigh: 14403239100412662956
+    m_SerializedTextureGuid:
+      m_GuidLow: 16060982714483644599
+      m_GuidHigh: 4268449613155833274
+    m_Size: {x: 0.16, y: 0.12620865}
+    m_SpecifySize: 1
+    m_Name: ParentSunPrefab
+    m_Texture: {fileID: 0}
+  - m_SerializedGuid:
+      m_GuidLow: 5318871780379466801
+      m_GuidHigh: 15647703795452865686
+    m_SerializedTextureGuid:
+      m_GuidLow: 13737288049401166965
+      m_GuidHigh: 15626076067660187976
+    m_Size: {x: 0, y: 0}
+    m_SpecifySize: 0
+    m_Name: ParentMerlionFab
+    m_Texture: {fileID: 0}
+  - m_SerializedGuid:
+      m_GuidLow: 5565961896148003825
+      m_GuidHigh: 14661881163977441692
+    m_SerializedTextureGuid:
+      m_GuidLow: 13039238883651435771
+      m_GuidHigh: 16727967183002417962
+    m_Size: {x: 0.2645, y: 0.39648548}
+    m_SpecifySize: 1
+    m_Name: ParentAlienVideo
+    m_Texture: {fileID: 2800000, guid: 09813cfbaeaeb4f42a3b403d86ad25e8, type: 3}
