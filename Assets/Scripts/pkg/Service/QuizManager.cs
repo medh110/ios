@@ -26,19 +26,7 @@ public class QuizManager : DisableOnAnimationTrigger
     private QuizAnswerButton CorrectButton;
     private const string SHOW_ANSWER_TRIGGER = "ShowAnswer";
 
-    public void OnEnable()
-    {
-        APIClient.QuizResponse sampleQuiz = new APIClient.QuizResponse();
-        sampleQuiz.questions = "what is the national flower of singapore";
-        sampleQuiz.answer_a = "Sunflower";
-        sampleQuiz.answer_b = "Epidendrum Orchid";
-        sampleQuiz.answer_c = "Vanda Miss Joaquim Orchid";
-        sampleQuiz.answer_d = "Brassavola Orchid";
-        sampleQuiz.explanation = "Papilionanthe Miss Joaquim, Also known as the Singapore orchid, this hybrid orchid is the national flower of Singapore. It was chosen for its resilience and vibrant colors.";
-        sampleQuiz.correct_answer = sampleQuiz.answer_c;
-        
-        SetQuizData(sampleQuiz);
-    }
+
 
     public override void Start()
     {
@@ -64,6 +52,7 @@ public class QuizManager : DisableOnAnimationTrigger
         SetButton(_answerCButton, quizData.answer_c);
         SetButton(_answerDButton, quizData.answer_d);
 
+        gameObject.SetActive(true);
     }
 
     private void SetButton(QuizAnswerButton button, string answerText)
