@@ -4,7 +4,7 @@ using UnityEngine;
 public class DisableOnAnimationTrigger : MonoBehaviour
 {
     protected Animator PageAnimator;
-    
+    protected Action OnCloseAction { get; set; }
     private const string EXIT_TRIGGER = "Exit";
     
     public virtual void Start()
@@ -12,8 +12,15 @@ public class DisableOnAnimationTrigger : MonoBehaviour
         PageAnimator = GetComponent<Animator>();
     }
 
-    public void DisableGameobjectOnTrigger()
+    public virtual void SetOnCloseAction(Action action)
     {
+        OnCloseAction = action;
+    }
+    
+    protected virtual void DisableGameobjectOnTrigger()
+    {
+        OnCloseAction?.Invoke();
+        OnCloseAction = null;
         gameObject.SetActive(false);
     }
     
