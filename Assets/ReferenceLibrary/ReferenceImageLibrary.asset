@@ -26,7 +26,7 @@ MonoBehaviour:
     m_Size: {x: 0.16, y: 0.11061564}
     m_SpecifySize: 1
     m_Name: ParentFabVideo-1
-    m_Texture: {fileID: 0}
+    m_Texture: {fileID: 2800000, guid: 37e2acab2a1c0924dba92944e43fa5ee, type: 3}
   - m_SerializedGuid:
       m_GuidLow: 4721715246444910346
       m_GuidHigh: 14403239100412662956
@@ -46,7 +46,7 @@ MonoBehaviour:
     m_Size: {x: 0, y: 0}
     m_SpecifySize: 0
     m_Name: ParentMerlionFab
-    m_Texture: {fileID: 0}
+    m_Texture: {fileID: 2800000, guid: 99c67c75a6b2bea448491e9e64f9dad8, type: 3}
   - m_SerializedGuid:
       m_GuidLow: 5565961896148003825
       m_GuidHigh: 14661881163977441692
