@@ -1,0 +1,35 @@
+ManifestFileVersion: 0
+UnityVersion: 6000.0.28f1
+CRC: 974089174
+Hashes:
+  AssetFileHash:
+    serializedVersion: 2
+    Hash: 30e8e8637f39cac7a6c6bf9081b261b9
+  TypeTreeHash:
+    serializedVersion: 2
+    Hash: 02891d9e88e5268131f274408ebabf71
+  IncrementalBuildHash:
+    serializedVersion: 2
+    Hash: dfc498b8386794b63a62c6df1e31177d
+HashAppended: 0
+ClassTypes:
+- Class: 1
+  Script: {instanceID: 0}
+- Class: 4
+  Script: {instanceID: 0}
+- Class: 21
+  Script: {instanceID: 0}
+- Class: 23
+  Script: {instanceID: 0}
+- Class: 33
+  Script: {instanceID: 0}
+- Class: 43
+  Script: {instanceID: 0}
+- Class: 48
+  Script: {instanceID: 0}
+- Class: 65
+  Script: {instanceID: 0}
+SerializeReferenceClassIdentifiers: []
+Assets:
+- Assets/Prefab/ParentMerlionFab.prefab
+Dependencies: []

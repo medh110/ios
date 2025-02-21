@@ -1,0 +1,23 @@
+ManifestFileVersion: 0
+UnityVersion: 6000.0.28f1
+CRC: 2953861071
+Hashes:
+  AssetFileHash:
+    serializedVersion: 2
+    Hash: dff0f5e1c48dd661cc9f300c68f7a8a0
+  TypeTreeHash:
+    serializedVersion: 2
+    Hash: 4afb0d898c1c22a5e88248733bd69457
+  IncrementalBuildHash:
+    serializedVersion: 2
+    Hash: 285337f27f7d7c11d36f641b736c5f06
+HashAppended: 0
+ClassTypes:
+- Class: 21
+  Script: {instanceID: 0}
+- Class: 48
+  Script: {instanceID: 0}
+SerializeReferenceClassIdentifiers: []
+Assets:
+- Assets/Materials/MerlionMaterial.mat
+Dependencies: []
