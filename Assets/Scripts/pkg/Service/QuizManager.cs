@@ -20,7 +20,7 @@ public class QuizManager : DisableOnAnimationTrigger
     [SerializeField]
     private TMP_Text _explanation;
     [SerializeField]
-    private Image _explanationImage;
+    private RawImage _explanationImage;
 
     private string correctAnswer;
     private QuizAnswerButton CorrectButton;
@@ -92,5 +92,15 @@ public class QuizManager : DisableOnAnimationTrigger
         _answerBButton.ToggleInteractable(false);
         _answerCButton.ToggleInteractable(false);
         _answerDButton.ToggleInteractable(false);
+    }
+
+    public void SetIcon(Texture2D tex)
+    {
+        _explanationImage.texture = tex;
+    }
+
+    public void SetEmpty()
+    {
+
     }
 }
