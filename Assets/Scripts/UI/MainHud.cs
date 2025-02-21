@@ -46,6 +46,8 @@ public class MainHud : MonoBehaviour
     private void Start()
     {
         mainCamera = Camera.main;
+        
+        // Initialize the input action of controls
         touchControls = new TouchControls();
         touchControls.Enable();
         
@@ -53,6 +55,7 @@ public class MainHud : MonoBehaviour
         touchPress = touchControls.Touch.PrimaryTouchPressed;
         secondPress = touchControls.Touch.SecondaryTouchContact;
 
+        // Listen for input action triggers when action is performed and cancelled
         secondPress.performed += OnSecondPressPerformed;
         secondPress.canceled += OnSecondPressCancelled;
         touchPress.performed += OnTouchPerformed;
@@ -72,17 +75,23 @@ public class MainHud : MonoBehaviour
 
     private void OnSecondPressCancelled(InputAction.CallbackContext obj)
     {
+        // Triggered when system detects the second touch is removed
+        // Disable flag for pinch scale
         hasInitialDistance = false;
         secondTouchInitiated = false;
     }
 
     private void OnSecondPressPerformed(InputAction.CallbackContext obj)
     {
+        // Triggered when system detects a second touch
+        // Enabled the flag to detect pinch scale
         secondTouchInitiated = true;
     }
 
     private void OnTouchCancelled(InputAction.CallbackContext obj)
     {
+        // Triggered when system detects that the primary touch is removed
+        // Disable all flags related to drag and rotate
         initialTouchPoint = false;
         onPointerDown = false;
         onTouchHold = false;
@@ -90,6 +99,7 @@ public class MainHud : MonoBehaviour
 
     private void OnTouchPerformed(InputAction.CallbackContext obj)
     {
+        // Triggered when system detects that the primary touch 
         onPointerDown = true;
     }
 
@@ -105,6 +115,7 @@ public class MainHud : MonoBehaviour
 
     private void OnDestroy()
     {
+        //Dispose all input action on destroy
         secondPress.performed -= OnSecondPressPerformed;
         secondPress.canceled -= OnSecondPressCancelled;
         touchPress.performed -= OnTouchPerformed;
@@ -116,14 +127,20 @@ public class MainHud : MonoBehaviour
 
     public void ShowHelpPage()
     {
+        // Enable help page
         _helpPage.SetActive(true);
     }
 
     public void ClosePreview()
     {
+        // Close HUD Preview mode and set values of movable objects
+        // to null for proper handling
         currentMovableObject = null;
         lastSelectedObject = null;
         TogglePreview(false);
+        
+        // We must inform behavior manager that preview is closed
+        // to properly reset any values need on the manager side
         _imageBehaviorManager.OnPreviewClosed();
     }
 
@@ -134,18 +151,23 @@ public class MainHud : MonoBehaviour
 
     public void TogglePreview(bool onPreview)
     {
+        // Toggle the flag if preview is enabled
         onPreviewMode = onPreview;
 
         if (onPreviewMode)
         {
+            // If preview mode is enabled. we cache the spawned object in the manager
             currentMovableObject = _imageBehaviorManager.CurrentMovableObject;
         }
+        
         _previewPage.SetActive(onPreview);
         _hudPage.SetActive(!onPreview);
     }
 
     private bool CheckTargetScale(Vector3 targetScale, ARType currentType)
     {
+        // Check if the scale of the target doesn't exceed the limit to
+        // prevent object from getting scaled to a large or negative value
         if (currentType == ARType.Model)
         {
             if (targetScale.z < 0.1 || targetScale.z > 5f)
@@ -171,26 +193,33 @@ public class MainHud : MonoBehaviour
     {
         if (!onPreviewMode)
         {
+            // Return if preview mode is disabled
             return;
         }
 
+        // Get the value from input action 
         var input = context.ReadValue<float>() * SCALE_DAMPENER;
         if (_imageBehaviorManager.CurrentType == ARType.Model)
         {
+            // We use vector3 for model to include z-axis in scale
             inputScale = Vector3.one * input * Time.deltaTime;
         }
         else
         {
+            // We use vector2 for video to exclude z-axis in scale
             inputScale = Vector2.one * input * Time.deltaTime;
         }
 
+        // Compute the end result of scale and check if it is within the limit
         var targetScale = _imageBehaviorManager.CurrentMovableObject.transform.localScale + inputScale;
 
         if (!CheckTargetScale(targetScale, _imageBehaviorManager.CurrentType))
         {
+            // Don't apply if it is outside the scale limit
             return;
         }
         
+        // Apply the target scale if within the limit 
         currentMovableObject.transform.localScale = targetScale;
     }
 
@@ -208,6 +237,7 @@ public class MainHud : MonoBehaviour
             var dist = Vector2.Distance(posA, posB);
             if (!hasInitialDistance)
             {
+                // If no dist is recorded yet use the computed dist as starting distance
                 prevDist = dist;
                 hasInitialDistance = true;
             }
@@ -216,18 +246,24 @@ public class MainHud : MonoBehaviour
             prevDist = dist;
             if (_imageBehaviorManager.CurrentType == ARType.Model)
             {
+                // We use vector3 for model to include z-axis in scale
                 inputScale = Vector3.one * targetDist * Time.deltaTime;
             }
             else
             {
+                // We use vector2 for video to exclude z-axis in scale
                 inputScale = Vector2.one * targetDist * Time.deltaTime;
             }
-
+            
+            // Compute the end result of scale and check if it is within the limit
             var targetScale = currentMovableObject.transform.localScale + inputScale;
             if (!CheckTargetScale(targetScale, _imageBehaviorManager.CurrentType))
             {
+                // Don't apply if it is outside the scale limit
                 return;
             }
+            
+            // Apply the target scale if within the limit 
             currentMovableObject.transform.localScale = targetScale;
         
             return;
@@ -235,6 +271,9 @@ public class MainHud : MonoBehaviour
 
         if (onPointerDown)
         {
+            // This allow us to switch from Game/Simulator view
+            // Mouse is only available for Game View and TouchScreen
+            // is only available for simulator view
             if (!isTouchScreenActive)
             {
                 touchPosition = Mouse.current.position.value;
@@ -248,6 +287,7 @@ public class MainHud : MonoBehaviour
 
             if (!initialTouchPoint)
             {
+                // If initial touch is detected check if it touches the object collider
                 initialTouchPoint = true;
                 cameraRay = mainCamera.ScreenPointToRay(touchPosition);
                 RaycastHit hitObj;
@@ -257,6 +297,7 @@ public class MainHud : MonoBehaviour
                     {
                         if (!onTouchHold)
                         {
+                            // If the current preview object is touched we initiate drag functionality
                             originPoint = mainCamera.WorldToScreenPoint(hitObj.transform.position);
                             mousePosition = touchPosition - originPoint;
                             lastSelectedObject = hitObj.transform.gameObject;
@@ -268,10 +309,12 @@ public class MainHud : MonoBehaviour
         
             if (onTouchHold)
             {
+                // Move the object to mouse position until the primary touch is released
                 lastSelectedObject.transform.position = mainCamera.ScreenToWorldPoint(touchPosition - mousePosition);
             }
             else
             {
+                // Rotate the object relative to camera view using the touch movement delta
                 var relativeUp = mainCamera.transform.TransformDirection(Vector3.up);
                 var relativeRight = mainCamera.transform.TransformDirection(Vector3.right);
                 currentMovableObject.transform.Rotate(relativeUp, -touchDelta.x * ROTATION_DAMPENER_X, Space.World);

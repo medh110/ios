@@ -48,7 +48,10 @@ public class ARImageBehaviorManager : MonoBehaviour
         sampleQuiz.explanation = "Papilionanthe Miss Joaquim, Also known as the Singapore orchid, this hybrid orchid is the national flower of Singapore. It was chosen for its resilience and vibrant colors.";
         sampleQuiz.correct_answer = sampleQuiz.answer_c;
         sampleQuiz.image = $"file:///{Application.dataPath}/../SampleAssets/singapore-orchids1.jpg";
+        
+        // This is just a sample clip for popup video and overlay video
         sampleClip = $"file:///{Application.dataPath}/../SampleAssets/SampleVideo.mp4";
+        
         trackedImageManager.trackablesChanged.AddListener(OnTrackedImagesChanged);
     }
     void OnDisable()
@@ -72,8 +75,10 @@ public class ARImageBehaviorManager : MonoBehaviour
 
         foreach (var trackedImage in eventArgs.updated)
         {
+            // We only check for new marker if old marker is not detected
             if (trackedImage.trackableId != currentTrackableId)
             {
+                // Must filter marker with empty it must always have a name
                 if (!string.IsNullOrEmpty(trackedImage.referenceImage.name))
                 {
                     currentTrackable = trackedImage;
@@ -89,6 +94,8 @@ public class ARImageBehaviorManager : MonoBehaviour
 
     public IEnumerator ShowLoadingThenExecute(Action actionToExecute, float waitSeconds = 3f)
     {
+        // This is just a simulation of loading screen for local testing
+        // this is to simulate the wait time from backend for response
         ToggleLoadingScreen(true);
         yield return new WaitForSeconds(waitSeconds);
         actionToExecute.Invoke();
@@ -185,21 +192,27 @@ public class ARImageBehaviorManager : MonoBehaviour
 
     private void ToggleHudCanvas(bool isEnable)
     {
+        // Toggle the hud canvas for overlay and preview mode
         _hudCanvas.gameObject.SetActive(isEnable);
     }
 
     private void ToggleLoadingScreen(bool isEnable)
     {
+        // This enable/disable loading screen
         _loadingScreen.SetActive(isEnable);
     }
     
     public void OnPreviewClosed()
     {
+        // Destroy the current spawned model / video 
         Destroy(CurrentMovableObject);
+        
         if (CurrentType == ARType.Model)
         {
+            // We must unload the asset bundle upon closing the preview mode
             AssetBundle.UnloadAllAssetBundles(true);
         }
+        
         CurrentType = ARType.Invalid;
         isOverlayActive = false;
     }
@@ -231,6 +244,8 @@ public class ARImageBehaviorManager : MonoBehaviour
         {
             StartCoroutine(PlayVideoWithAuth(shortUrl, overlayVideoPrefab.VideoPlayer, () =>
             {
+                // Must disable the HUD and set overlayActive to true to prevent 
+                // system from detecting another marker
                 ToggleHudCanvas(false);
                 isOverlayActive = true;
                 isPendingResponse = false;
@@ -238,6 +253,8 @@ public class ARImageBehaviorManager : MonoBehaviour
                 ToggleLoadingScreen(false);
                 overlayVideoPrefab.SetOnCloseAction(() =>
                 {
+                    // Enable HUD when close and set overlay to false to let the system know
+                    // we can scan for another marker
                     CurrentType = ARType.Invalid;
                     isOverlayActive = false;
                     ToggleHudCanvas(true);
@@ -258,6 +275,8 @@ public class ARImageBehaviorManager : MonoBehaviour
         {
             StartCoroutine(PlayVideoWithAuth(videoUrl, videoPlayer, () =>
             {
+                // Must disable the HUD and set overlayActive to true to prevent 
+                // system from detecting another marker and enable preview mode for controls
                 isOverlayActive = true;
                 _hudCanvas.TogglePreview(true);
                 isPendingResponse = false;
@@ -280,17 +299,21 @@ public class ARImageBehaviorManager : MonoBehaviour
 
     private IEnumerator ReadQuizPage(APIClient.QuizResponse quizData)
     {
+        // Download the image need for quiz answer
         using(UnityWebRequest request = UnityWebRequest.Get(quizData.image))
         {
             yield return request.SendWebRequest();
             switch (request.result)
             {
                 case UnityWebRequest.Result.Success:
+                    // Convert the downloaded byte to texture 
                     var data = request.downloadHandler.data;
                     var tex = new Texture2D(1, 1);
                     var isSuccess = ImageConversion.LoadImage(tex, data, false);
+                    
                     if (isSuccess)
                     {
+                        // If conversion succeeds set the texture to the container
                         quizPrefab.SetIcon(tex);
                     }
                     else
@@ -304,15 +327,18 @@ public class ARImageBehaviorManager : MonoBehaviour
             }
         }
 
+        // Disable HUD and show the quiz page
         ToggleHudCanvas(false);
         quizPrefab.SetQuizData(quizData);
         quizPrefab.SetOnCloseAction(() =>
         {
+            // Set overlay to false and enable hud when quiz page is closed
             CurrentType = ARType.Invalid;
             isOverlayActive = false;
             ToggleHudCanvas(true);
         });
         
+        // Set overlay to true to prevent system from scanning another marker
         isOverlayActive = true;
         isPendingResponse = false;
         ToggleLoadingScreen(false);
@@ -382,18 +408,26 @@ public class ARImageBehaviorManager : MonoBehaviour
 
     private System.Collections.IEnumerator LoadAndAttachModel(string modelUrl, Transform parentTransform)
     {
+        // Download the asset bundle from URL
         using (UnityWebRequest webRequest = UnityWebRequestAssetBundle.GetAssetBundle(modelUrl))
         {
             yield return webRequest.SendWebRequest();
             switch (webRequest.result)
             {
                 case  UnityWebRequest.Result.Success:
+                    // Must replace this to the exact file name instead of getting the last part
+                    // of the URL in case url doesn't supply the name
                     var filename = modelUrl.Split('/').Last();
                     var bundle = DownloadHandlerAssetBundle.GetContent(webRequest);
+                    
+                    // Load the asset in the asset bundle and instantiate it in the game world
+                    // assign the instantiated gameobject in CurrentMovableObject for controls
                     GameObject prefab = bundle.LoadAsset<GameObject>(filename);
                     
                     CurrentMovableObject = Instantiate(prefab, parentTransform.position, Quaternion.identity);
 #if UNITY_EDITOR
+                    // We only do this for editor, a certain issue exist that only happens in editor and this
+                    // is the fix
                     FixShaderForEditor.FixShadersForEditor(CurrentMovableObject);
 #endif
                     break;
@@ -402,6 +436,8 @@ public class ARImageBehaviorManager : MonoBehaviour
                     break;
             }
 
+            // Set overlay to true to prevent system from scanning markers
+            // and enable preview mode of HUD
             isOverlayActive = true;
             ToggleLoadingScreen(false);
             _hudCanvas.TogglePreview(true);

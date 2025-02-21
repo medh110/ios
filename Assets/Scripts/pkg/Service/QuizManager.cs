@@ -47,6 +47,7 @@ public class QuizManager : DisableOnAnimationTrigger
         correctAnswer = quizData.correct_answer;
         _explanation.text = quizData.explanation;
 
+        // Set Button data
         SetButton(_answerAButton, quizData.answer_a);
         SetButton(_answerBButton, quizData.answer_b);
         SetButton(_answerCButton, quizData.answer_c);
@@ -61,6 +62,7 @@ public class QuizManager : DisableOnAnimationTrigger
         {
             if (correctAnswer == answerText)
             {
+                // Cached the button that shows the correct answer
                 CorrectButton = button;
             }
 
@@ -79,15 +81,20 @@ public class QuizManager : DisableOnAnimationTrigger
         if(quizAnswerButton != CorrectButton)
         {
             result = false;
+            // Show the correct answer if the submitted answer is incorrect
             CorrectButton.ShowAnswerIndicator(true);
         }
+        
+        // Trigger to show the answer in animation
         PageAnimator.SetTrigger(SHOW_ANSWER_TRIGGER);
         DisableAllButtons();
+        
         return result;
     }
 
     private void DisableAllButtons()
     {
+        // Set button interactable to false
         _answerAButton.ToggleInteractable(false);
         _answerBButton.ToggleInteractable(false);
         _answerCButton.ToggleInteractable(false);
@@ -96,6 +103,7 @@ public class QuizManager : DisableOnAnimationTrigger
 
     public void SetIcon(Texture2D tex)
     {
+        // Set the texture for image of the answer
         _explanationImage.texture = tex;
     }
 

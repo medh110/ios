@@ -15,28 +15,32 @@ using UnityEngine.UI;
         [SerializeField] 
         private Color _incorrectColor;
         
-        private QuizManager _quizManager;
+        private QuizManager quizManager;
 
         public void InitializeQuizManager(QuizManager quizManager)
         {
-            _quizManager = quizManager;
+            // Cache a reference to quiz manager
+            quizManager = quizManager;
         }
 
         public void SetButtonData(string answerText)
         {
+            // Show the answer assigned to this button
             _caption.text = answerText;
-            
             _answerIndicator.gameObject.SetActive(false);     
+            
+            // Set button interactable to true
             ToggleInteractable(true);
         }
 
         public void OnAnswerButtonClicked()
         {
-            ShowAnswerIndicator(_quizManager.ValidateAnswer(this));
+            ShowAnswerIndicator(quizManager.ValidateAnswer(this));
         }
 
         public void ShowAnswerIndicator(bool isCorrect)
         {
+            // Toggle indicator if the answer is correct or incorrect
             _answerIndicator.gameObject.SetActive(true);
             if (isCorrect)
             {
