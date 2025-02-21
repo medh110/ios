@@ -1,8 +1,11 @@
 using System;
-using System.Collections; // Required for IEnumerator and coroutines
+using System.Collections;
+using System.Linq;
 using UnityEngine;
 using UnityEngine.Networking;
+using UnityEngine.Video;
 using UnityEngine.XR.ARFoundation;
+using UnityEngine.XR.ARSubsystems;
 
 public class ARImageBehaviorManager : MonoBehaviour
 {
@@ -11,130 +14,313 @@ public class ARImageBehaviorManager : MonoBehaviour
     public APIClient apiClient;
 
     [Header("Dynamic Prefabs")]
-    public GameObject overlayVideoPrefab; // Prefab for overlay videos
+    public OverlayVideoPage overlayVideoPrefab; // Prefab for overlay videos
     public GameObject popUpVideoPrefab;   // Prefab for pop-up videos    public GameObject videoPrefab;
-    public GameObject quizPrefab;
-    public GameObject modelPrefab;
+    public QuizManager quizPrefab;
+
+    [SerializeField]
+    private GameObject _loadingScreen;
+    [SerializeField] 
+    private MainHud _hudCanvas;
+    
+    private ARTrackedImage currentTrackable;
+    private TrackableId currentTrackableId;
+    
+    private bool isOverlayActive = false;
+    private bool isPendingResponse = false;
+
+    private APIClient.QuizResponse sampleQuiz;
+    private string sampleClip;
+    public bool isLocalTesting;
+
+    public GameObject CurrentMovableObject { get; private set; }
+    public ARType CurrentType { get; private set; }
 
     void OnEnable()
     {
-        trackedImageManager.trackedImagesChanged += OnTrackedImagesChanged;
+        // This is just a sample data
+        sampleQuiz = new APIClient.QuizResponse();
+        sampleQuiz.questions = "what is the national flower of singapore";
+        sampleQuiz.answer_a = "Sunflower";
+        sampleQuiz.answer_b = "Epidendrum Orchid";
+        sampleQuiz.answer_c = "Vanda Miss Joaquim Orchid";
+        sampleQuiz.answer_d = "Brassavola Orchid";
+        sampleQuiz.explanation = "Papilionanthe Miss Joaquim, Also known as the Singapore orchid, this hybrid orchid is the national flower of Singapore. It was chosen for its resilience and vibrant colors.";
+        sampleQuiz.correct_answer = sampleQuiz.answer_c;
+        sampleQuiz.image = $"file:///{Application.dataPath}/../SampleAssets/singapore-orchids1.jpg";
+        sampleClip = $"file:///{Application.dataPath}/../SampleAssets/SampleVideo.mp4";
+        trackedImageManager.trackablesChanged.AddListener(OnTrackedImagesChanged);
     }
-
     void OnDisable()
     {
-        trackedImageManager.trackedImagesChanged -= OnTrackedImagesChanged;
+        trackedImageManager.trackablesChanged.RemoveListener(OnTrackedImagesChanged);
     }
 
-    private void OnTrackedImagesChanged(ARTrackedImagesChangedEventArgs eventArgs)
+    private void OnTrackedImagesChanged(ARTrackablesChangedEventArgs<ARTrackedImage> eventArgs)
     {
-        foreach (var trackedImage in eventArgs.added)
+        // If any overlay UI is active like quiz or video disable image tracking
+        if (isOverlayActive || isPendingResponse)
         {
-            Debug.Log($"Image detected: {trackedImage.referenceImage.name}");
-            FetchObjectAndExecuteBehavior(trackedImage.referenceImage.name, trackedImage.transform);
+            return;
         }
+
+        // If tracked list still contains current tracked item must return
+        if (eventArgs.updated.Contains(currentTrackable))
+        {
+            return;
+        }
+
+        foreach (var trackedImage in eventArgs.updated)
+        {
+            if (trackedImage.trackableId != currentTrackableId)
+            {
+                if (!string.IsNullOrEmpty(trackedImage.referenceImage.name))
+                {
+                    currentTrackable = trackedImage;
+                    currentTrackableId = trackedImage.trackableId;
+                    Debug.Log($"Image Updated: {trackedImage.referenceImage.name} State: {trackedImage.trackingState}");
+                    FetchObjectAndExecuteBehavior(trackedImage.referenceImage.name, trackedImage.transform);
+                    break;
+
+                }
+            }
+        }
+    }
+
+    public IEnumerator ShowLoadingThenExecute(Action actionToExecute, float waitSeconds = 3f)
+    {
+        ToggleLoadingScreen(true);
+        yield return new WaitForSeconds(waitSeconds);
+        actionToExecute.Invoke();
     }
 
     private void FetchObjectAndExecuteBehavior(string imageName, Transform imageTransform)
     {
-        // Fetch the object tied to the marker using the `original` field
-        apiClient.GetObjectProperties(
-            imageName,
-            response =>
+        if (isLocalTesting)
+        {
+            isPendingResponse = true;
+            // For local testing only using reference cached data
+            switch (imageName)
             {
-                Debug.Log($"Fetched object for {imageName}: Type={response.type}, Metadata={response.metadata}");
-
-                // Based on the type, call the appropriate content
-                switch (response.type)
+                case "ParentAlienVideo":
+                    StartCoroutine(ShowLoadingThenExecute(() =>
+                    {
+                        CurrentType = ARType.Quiz;
+                        StartCoroutine(ReadQuizPage(sampleQuiz));
+                    }));
+                    break;
+                case "ParentFabVideo-1":
+                    StartCoroutine(ShowLoadingThenExecute(() =>
+                    {
+                        CurrentType = ARType.OverlayVideo;
+                        InstantiateAndConfigureOverlayVideo(sampleClip);
+                    }));
+                    break;
+                
+                case "ParentSunPrefab":
+                    StartCoroutine(ShowLoadingThenExecute(() =>
+                    {
+                         CurrentType = ARType.PopupVideo;
+                         InstantiateAndConfigurePopupVideo(sampleClip, imageTransform);
+                    }));
+                    break;
+                
+                case "ParentMerlionFab":
+                    StartCoroutine(ShowLoadingThenExecute(() =>
+                    {
+                        var url = $"file:///{Application.dataPath}/../AssetBundle/Android/ParentMerlionFab";
+                        CurrentType = ARType.Model;
+                        StartCoroutine(LoadAndAttachModel(url, imageTransform));
+                    }));
+                    break;
+            }
+        }
+        else
+        {
+            // Set Pending response to avoid sending another marker image while one is still pending
+            // Enable loading screen while waiting for response
+            isPendingResponse = true;
+            ToggleLoadingScreen(true);
+            
+            // Fetch the object tied to the marker using the `original` field
+            apiClient.GetObjectProperties(
+                imageName,
+                response =>
                 {
-                    case "video":
-                        FetchAndDisplayVideo(response, imageTransform);
-                        break;
+                    // Set pending response to false when result is received
+                    // Disable Loading screen
+                    Debug.Log($"Fetched object for {imageName}: Type={response.type}, Metadata={response.metadata}");
 
-                    case "quiz":
-                        FetchAndDisplayQuiz(response, imageTransform);
-                        break;
+                    // Based on the type, call the appropriate content
+                    switch (response.type)
+                    {
+                        case "video":
+                            FetchAndDisplayVideo(response, imageTransform);
+                            break;
 
-                    case "model":
-                        FetchAndDisplayModel(response, imageTransform);
-                        break;
+                        case "quiz":
+                            FetchAndDisplayQuiz(response, imageTransform);
+                            break;
 
-                    default:
-                        Debug.LogWarning($"Unhandled type: {response.type}");
-                        break;
-                }
-            },
-            error =>
-            {
-                Debug.LogError($"Failed to fetch object for {imageName}: {error}");
-            });
+                        case "model":
+                            FetchAndDisplayModel(response, imageTransform);
+                            break;
+
+                        default:
+                            Debug.LogWarning($"Unhandled type: {response.type}");
+                            break;
+                    }
+                },
+                error =>
+                {
+                    // Set pending response to false when result is received
+                    // Disable Loading screen
+                    isPendingResponse = false;
+                    ToggleLoadingScreen(false);
+
+                    Debug.LogError($"Failed to fetch object for {imageName}: {error}");
+                });
+        }
+    }
+
+    private void ToggleHudCanvas(bool isEnable)
+    {
+        _hudCanvas.gameObject.SetActive(isEnable);
+    }
+
+    private void ToggleLoadingScreen(bool isEnable)
+    {
+        _loadingScreen.SetActive(isEnable);
+    }
+    
+    public void OnPreviewClosed()
+    {
+        Destroy(CurrentMovableObject);
+        if (CurrentType == ARType.Model)
+        {
+            AssetBundle.UnloadAllAssetBundles(true);
+        }
+        CurrentType = ARType.Invalid;
+        isOverlayActive = false;
     }
 
     private void FetchAndDisplayVideo(APIClient.ShortURLResponse response, Transform imageTransform)
     {
         if (response.metadata == "overlay")
         {
-            InstantiateAndConfigureOverlayVideo(response.short_url, imageTransform);
+            CurrentType = ARType.OverlayVideo;
+            InstantiateAndConfigureOverlayVideo(response.short_url);
         }
         else if (response.metadata == "popup")
         {
-            InstantiateAndConfigurePopupVideo(response.short_url);
+            CurrentType = ARType.PopupVideo;
+            InstantiateAndConfigurePopupVideo(response.short_url, imageTransform);
         }
         else
         {
             Debug.LogWarning("Unknown video metadata. Defaulting to popup.");
-            InstantiateAndConfigurePopupVideo(response.short_url);
+            InstantiateAndConfigurePopupVideo(response.short_url, imageTransform);
         }
     }
 
-    private void InstantiateAndConfigureOverlayVideo(string shortUrl, Transform imageTransform)
+    private void InstantiateAndConfigureOverlayVideo(string shortUrl)
     {
         Debug.Log($"Preparing to play pop-up video from URL: {shortUrl}");
-
         // Instantiate the pop-up video prefab
-        var popupVideo = Instantiate(overlayVideoPrefab);
-        var videoPlayer = popupVideo.GetComponentInChildren<UnityEngine.Video.VideoPlayer>();
-
-        if (videoPlayer != null)
+        if (overlayVideoPrefab.VideoPlayer != null)
         {
-            StartCoroutine(PlayVideoWithAuth(shortUrl, videoPlayer));
+            StartCoroutine(PlayVideoWithAuth(shortUrl, overlayVideoPrefab.VideoPlayer, () =>
+            {
+                ToggleHudCanvas(false);
+                isOverlayActive = true;
+                isPendingResponse = false;
+                overlayVideoPrefab.gameObject.SetActive(true);
+                ToggleLoadingScreen(false);
+                overlayVideoPrefab.SetOnCloseAction(() =>
+                {
+                    CurrentType = ARType.Invalid;
+                    isOverlayActive = false;
+                    ToggleHudCanvas(true);
+                });
+            }));
         }
     }
 
-
-    private void InstantiateAndConfigurePopupVideo(string videoUrl)
+    private void InstantiateAndConfigurePopupVideo(string videoUrl, Transform imageTransform)
     {
         Debug.Log($"Preparing to play pop-up video from URL: {videoUrl}");
 
         // Instantiate the pop-up video prefab
-        var popupVideo = Instantiate(popUpVideoPrefab);
-        var videoPlayer = popupVideo.GetComponentInChildren<UnityEngine.Video.VideoPlayer>();
+        CurrentMovableObject = Instantiate(popUpVideoPrefab, imageTransform);
+        var videoPlayer = CurrentMovableObject.GetComponentInChildren<UnityEngine.Video.VideoPlayer>();
 
         if (videoPlayer != null)
         {
-            StartCoroutine(PlayVideoWithAuth(videoUrl, videoPlayer));
+            StartCoroutine(PlayVideoWithAuth(videoUrl, videoPlayer, () =>
+            {
+                isOverlayActive = true;
+                _hudCanvas.TogglePreview(true);
+                isPendingResponse = false;
+                ToggleLoadingScreen(false);
+            }));
         }
     }
 
     private void FetchAndDisplayQuiz(APIClient.ShortURLResponse response, Transform imageTransform)
     {
+        CurrentType = ARType.Quiz;
         apiClient.CallAPI(response.short_url, "GET", null,
             content =>
             {
                 var quizData = JsonUtility.FromJson<APIClient.QuizResponse>(content);
-                var quizObject = Instantiate(quizPrefab, imageTransform.position, imageTransform.rotation);
-                var quizManager = quizObject.GetComponent<QuizManager>();
-                if (quizManager != null)
-                {
-                    quizManager.SetQuizData(quizData);
-                }
+                StartCoroutine(ReadQuizPage(quizData));
             },
             error => Debug.LogError($"Failed to fetch quiz data from {response.short_url}: {error}"));
     }
 
+    private IEnumerator ReadQuizPage(APIClient.QuizResponse quizData)
+    {
+        using(UnityWebRequest request = UnityWebRequest.Get(quizData.image))
+        {
+            yield return request.SendWebRequest();
+            switch (request.result)
+            {
+                case UnityWebRequest.Result.Success:
+                    var data = request.downloadHandler.data;
+                    var tex = new Texture2D(1, 1);
+                    var isSuccess = ImageConversion.LoadImage(tex, data, false);
+                    if (isSuccess)
+                    {
+                        quizPrefab.SetIcon(tex);
+                    }
+                    else
+                    {
+                        quizPrefab.SetEmpty();
+                    }
+                    break;
+                default:
+                    Debug.LogError(request.error);
+                    break;
+            }
+        }
+
+        ToggleHudCanvas(false);
+        quizPrefab.SetQuizData(quizData);
+        quizPrefab.SetOnCloseAction(() =>
+        {
+            CurrentType = ARType.Invalid;
+            isOverlayActive = false;
+            ToggleHudCanvas(true);
+        });
+        
+        isOverlayActive = true;
+        isPendingResponse = false;
+        ToggleLoadingScreen(false);
+    }
+
 
     private bool isPlaying = false; // Prevent multiple executions
-    private IEnumerator PlayVideoWithAuth(string videoUrl, UnityEngine.Video.VideoPlayer videoPlayer)
+    private IEnumerator PlayVideoWithAuth(string videoUrl, UnityEngine.Video.VideoPlayer videoPlayer, Action executeOnReady = null)
     {
         if (isPlaying)
         {
@@ -147,7 +333,10 @@ public class ARImageBehaviorManager : MonoBehaviour
         // Create a UnityWebRequest with the required headers
         using (UnityWebRequest request = UnityWebRequest.Get(videoUrl))
         {
-            request.SetRequestHeader("X-API-KEY", "dfca5061-3576-47a9-872c-99d80b3c8218");
+            if (!isLocalTesting)
+            {
+                request.SetRequestHeader("X-API-KEY", "dfca5061-3576-47a9-872c-99d80b3c8218");
+            }
 
             // Begin the request
             yield return request.SendWebRequest();
@@ -162,11 +351,10 @@ public class ARImageBehaviorManager : MonoBehaviour
             Debug.Log("Video fetched successfully. Streaming to VideoPlayer...");
 
             // Prepare the video player with the downloaded data
-            var videoStream = new System.IO.MemoryStream(request.downloadHandler.data);
-
-            videoPlayer.source = UnityEngine.Video.VideoSource.VideoClip;
+            videoPlayer.source = VideoSource.Url;
             videoPlayer.url = videoUrl; // Use the URL only for metadata (not streaming)
             videoPlayer.Prepare();
+            executeOnReady?.Invoke();
 
             videoPlayer.prepareCompleted += (source) =>
             {
@@ -176,6 +364,11 @@ public class ARImageBehaviorManager : MonoBehaviour
             // Error handling
             videoPlayer.errorReceived += (source, message) =>
             {
+                if (isOverlayActive)
+                {
+                    isOverlayActive = false;
+                    ToggleHudCanvas(true);
+                }
                 Debug.LogError($"VideoPlayer error: {message}");    
             };
         }
@@ -183,15 +376,37 @@ public class ARImageBehaviorManager : MonoBehaviour
     }
     private void FetchAndDisplayModel(APIClient.ShortURLResponse response, Transform imageTransform)
     {
+        CurrentType = ARType.Model;
         StartCoroutine(LoadAndAttachModel(response.short_url, imageTransform));
     }
 
     private System.Collections.IEnumerator LoadAndAttachModel(string modelUrl, Transform parentTransform)
     {
-        // Example of loading a 3D model dynamically
-        Debug.Log($"Loading model from {modelUrl}...");
-        yield return new WaitForSeconds(1); // Simulate loading delay
-        Debug.Log($"Model loaded from {modelUrl} and attached to {parentTransform.name}");
+        using (UnityWebRequest webRequest = UnityWebRequestAssetBundle.GetAssetBundle(modelUrl))
+        {
+            yield return webRequest.SendWebRequest();
+            switch (webRequest.result)
+            {
+                case  UnityWebRequest.Result.Success:
+                    var filename = modelUrl.Split('/').Last();
+                    var bundle = DownloadHandlerAssetBundle.GetContent(webRequest);
+                    GameObject prefab = bundle.LoadAsset<GameObject>(filename);
+                    
+                    CurrentMovableObject = Instantiate(prefab, parentTransform.position, Quaternion.identity);
+#if UNITY_EDITOR
+                    FixShaderForEditor.FixShadersForEditor(CurrentMovableObject);
+#endif
+                    break;
+                default:
+                    Debug.LogError(webRequest.error);
+                    break;
+            }
+
+            isOverlayActive = true;
+            ToggleLoadingScreen(false);
+            _hudCanvas.TogglePreview(true);
+            isPendingResponse = false;
+        }
     }
 
     public void ExecuteBehaviorFromShortURL(string shortcode)
@@ -241,16 +456,16 @@ public class ARImageBehaviorManager : MonoBehaviour
     {
         if (response.metadata.Contains("popup"))
         {
-            InstantiateAndConfigurePopupVideo(response.short_url);
+            InstantiateAndConfigurePopupVideo(response.short_url, null);
         }
         else if (response.metadata.Contains("overlay"))
         {
-            InstantiateAndConfigureOverlayVideo(response.short_url, null); // No marker needed for QR code
+            InstantiateAndConfigureOverlayVideo(response.short_url); // No marker needed for QR code
         }
         else
         {
             Debug.LogWarning($"Unknown metadata for video: {response.metadata}. Defaulting to popup.");
-            InstantiateAndConfigurePopupVideo(response.short_url);
+            InstantiateAndConfigurePopupVideo(response.short_url, null);
         }
     }
 }
