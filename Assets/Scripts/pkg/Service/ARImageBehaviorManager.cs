@@ -92,7 +92,7 @@ public class ARImageBehaviorManager : MonoBehaviour
                     currentTrackable = trackedImage;
                     currentTrackableId = trackedImage.trackableId;
                     if (!_touchToScan)
-                    { 
+                    {
                         FetchObjectAndExecuteBehavior(trackedImage.referenceImage.name, trackedImage.transform);
                     }
                     break;
@@ -295,6 +295,7 @@ public class ARImageBehaviorManager : MonoBehaviour
 
         // Instantiate the pop-up video prefab
         CurrentMovableObject = Instantiate(popUpVideoPrefab, imageTransform);
+        CurrentMovableObject.transform.localScale = Vector2.one * currentTrackable.size;
         var videoPlayer = CurrentMovableObject.GetComponentInChildren<UnityEngine.Video.VideoPlayer>();
 
         if (videoPlayer != null)
