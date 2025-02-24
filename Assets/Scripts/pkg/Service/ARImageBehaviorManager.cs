@@ -22,6 +22,8 @@ public class ARImageBehaviorManager : MonoBehaviour
     private GameObject _loadingScreen;
     [SerializeField] 
     private MainHud _hudCanvas;
+    [SerializeField]
+    private bool _touchToScan;
     
     private ARTrackedImage currentTrackable;
     private TrackableId currentTrackableId;
@@ -35,6 +37,7 @@ public class ARImageBehaviorManager : MonoBehaviour
 
     public GameObject CurrentMovableObject { get; private set; }
     public ARType CurrentType { get; private set; }
+    public bool CanScan => !isOverlayActive && !isPendingResponse;
 
     void OnEnable()
     {
@@ -75,6 +78,11 @@ public class ARImageBehaviorManager : MonoBehaviour
 
         foreach (var trackedImage in eventArgs.updated)
         {
+            // Don't process marker if tracking state is limited, means marker is not tracked anymore
+            if (trackedImage.trackingState == TrackingState.Limited)
+            {
+                continue;
+            }
             // We only check for new marker if old marker is not detected
             if (trackedImage.trackableId != currentTrackableId)
             {
@@ -83,13 +91,31 @@ public class ARImageBehaviorManager : MonoBehaviour
                 {
                     currentTrackable = trackedImage;
                     currentTrackableId = trackedImage.trackableId;
-                    Debug.Log($"Image Updated: {trackedImage.referenceImage.name} State: {trackedImage.trackingState}");
-                    FetchObjectAndExecuteBehavior(trackedImage.referenceImage.name, trackedImage.transform);
+                    if (!_touchToScan)
+                    { 
+                        FetchObjectAndExecuteBehavior(trackedImage.referenceImage.name, trackedImage.transform);
+                    }
                     break;
-
                 }
             }
         }
+    }
+
+    public void Scan()
+    {
+        // If any overlay UI is active like quiz or video disable image tracking
+        if (isOverlayActive || isPendingResponse)
+        {
+            return;
+        }
+
+        // If cached marker is not on Tracking state means no marker is currently tracked
+        if (currentTrackable.trackingState != TrackingState.Tracking)
+        {
+            return;
+        }
+
+        FetchObjectAndExecuteBehavior(currentTrackable.referenceImage.name, currentTrackable.transform);
     }
 
     public IEnumerator ShowLoadingThenExecute(Action actionToExecute, float waitSeconds = 3f)
