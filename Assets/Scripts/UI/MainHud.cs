@@ -125,6 +125,11 @@ public class MainHud : MonoBehaviour
         touchControls.Dispose();
     }
 
+    public void ScanCode()
+    {
+        _imageBehaviorManager.Scan();
+    }
+
     public void ShowHelpPage()
     {
         // Enable help page

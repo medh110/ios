@@ -6,8 +6,6 @@ public class OverlayVideoPage : DisableOnAnimationTrigger
     [SerializeField] 
     private VideoPlayer _videoPlayer;
     [SerializeField] 
-    private GameObject _hud;
-    [SerializeField] 
     private GameObject _playButton;
     [SerializeField] 
     private GameObject _pauseButton;
@@ -16,11 +14,8 @@ public class OverlayVideoPage : DisableOnAnimationTrigger
     [SerializeField] 
     private GameObject _forward;
     
-    private const float HUD_SHOWTIME = 2.5f;
-    
     private bool isShowing  = true;
     private bool isDone = false;
-    private float timeBeforeHiding = 1.5f;
 
     // Property get for video player for outside access
     public VideoPlayer VideoPlayer => _videoPlayer;
@@ -88,14 +83,8 @@ public class OverlayVideoPage : DisableOnAnimationTrigger
 
     public void ToggleHud(bool show)
     {
-        if (show)
-        {   
-            ResetTimer();
-        }
-
         TogglePlayButton();
         isShowing = show;
-        _hud.SetActive(isShowing);        
     }
 
     public void PlayVideo()
@@ -108,12 +97,6 @@ public class OverlayVideoPage : DisableOnAnimationTrigger
     public void TogglePlayPause()
     {
         TogglePlay(_videoPlayer.isPlaying);
-    }
-
-    public void ResetTimer()
-    {
-        // Reset the time for hiding the HUD when not clicking anything
-        timeBeforeHiding = HUD_SHOWTIME;
     }
 
     public void TogglePlay(bool playVideo)
@@ -145,7 +128,6 @@ public class OverlayVideoPage : DisableOnAnimationTrigger
             }
             _videoPlayer.Pause();
         }
-        ResetTimer();
         TogglePlayButton();
     }
 
@@ -160,30 +142,11 @@ public class OverlayVideoPage : DisableOnAnimationTrigger
     {
         // Move back video player time by 3 seconds
         _videoPlayer.time -= 3;
-        ResetTimer();
     }
 
     public void Forward()
     {
         // Move forward video player time by 3 seconds
         _videoPlayer.time += 3;
-        ResetTimer();
-    }
-
-    public void Update()
-    {
-        if (!isShowing || isDone)
-        {
-            // If HUD is not showing or video is done playing dont do anything
-            return;
-        }
-
-        // Time until video HUD is disabled when not clicking anything to ensure it doesn't
-        // block the video the entire time
-        timeBeforeHiding -= 1f * Time.deltaTime;
-        if (timeBeforeHiding <= 0.0f)
-        {
-            ToggleHud(false);
-        }
     }
 }
