@@ -20,7 +20,16 @@ public class QuizManager : DisableOnAnimationTrigger
     [SerializeField]
     private TMP_Text _explanation;
     [SerializeField]
+    private TMP_Text _answerIndicatorText;
+    [SerializeField]
     private RawImage _explanationImage;
+
+    [SerializeField]
+    private Image _answerIndicator;
+    [SerializeField]
+    private Color _correctColor;
+    [SerializeField]
+    private Color _incorrectColor;
 
     private string correctAnswer;
     private QuizAnswerButton CorrectButton;
@@ -75,21 +84,35 @@ public class QuizManager : DisableOnAnimationTrigger
         }
     }
 
-    public bool ValidateAnswer(QuizAnswerButton quizAnswerButton)
+    public void ValidateAnswer(QuizAnswerButton quizAnswerButton)
     {
         var result = true;  
         if(quizAnswerButton != CorrectButton)
         {
             result = false;
-            // Show the correct answer if the submitted answer is incorrect
-            CorrectButton.ShowAnswerIndicator(true);
         }
-        
+     
+        ShowAnswerIndicator(result);
+
         // Trigger to show the answer in animation
         PageAnimator.SetTrigger(SHOW_ANSWER_TRIGGER);
         DisableAllButtons();
-        
-        return result;
+    }
+
+    public void ShowAnswerIndicator(bool isCorrect)
+    {
+        // Toggle indicator if the answer is correct or incorrect
+        _answerIndicator.gameObject.SetActive(true);
+        if (isCorrect)
+        {
+            _answerIndicatorText.text = "CORRECT";
+            _answerIndicator.color = _correctColor;
+        }
+        else
+        {
+            _answerIndicatorText.text = "INCORRECT";
+            _answerIndicator.color = _incorrectColor;
+        }
     }
 
     private void DisableAllButtons()
