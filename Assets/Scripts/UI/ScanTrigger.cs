@@ -6,6 +6,8 @@ public class ScanTrigger : MonoBehaviour
     private Animator _animator;
     [SerializeField]
     private ARImageBehaviorManager _imageBehavior;
+    [SerializeField]
+    private QRCodeDetector _qrReader;
 
     private const string SCAN = "scan";
 
@@ -31,8 +33,15 @@ public class ScanTrigger : MonoBehaviour
 
     public void ScanFinished()
     {
-        // Check if any existing marker is tracked
-        _imageBehavior.Scan();
+        if (_qrReader.HasQRResult)
+        {
+            _qrReader.ExecuteCachedResult();
+        }
+        else 
+        {
+            // Check if any existing marker is tracked
+            _imageBehavior.Scan();
+        }
         scanning = false;
     }
 }
