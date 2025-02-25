@@ -2615,6 +2615,7 @@ MonoBehaviour:
   arCameraManager: {fileID: 1261198088}
   behaviorManager: {fileID: 837647801}
   qrResultText: {fileID: 1153296975}
+  _touchToScan: 1
 --- !u!4 &547878811
 Transform:
   m_ObjectHideFlags: 0
@@ -10020,6 +10021,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   _animator: {fileID: 1740962655}
   _imageBehavior: {fileID: 837647801}
+  _qrReader: {fileID: 547878810}
 --- !u!1 &1750329304
 GameObject:
   m_ObjectHideFlags: 0
@@ -11526,6 +11528,7 @@ MonoBehaviour:
   arCameraManager: {fileID: 1261198088}
   behaviorManager: {fileID: 837647801}
   qrResultText: {fileID: 1153296975}
+  _touchToScan: 0
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
