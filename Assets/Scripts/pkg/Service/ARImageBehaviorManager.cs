@@ -345,7 +345,12 @@ public class ARImageBehaviorManager : MonoBehaviour
                 var quizData = JsonUtility.FromJson<APIClient.QuizResponse>(content);
                 StartCoroutine(ReadQuizPage(quizData));
             },
-            error => Debug.LogError($"Failed to fetch quiz data from {response.short_url}: {error}"));
+            error => {
+                isOverlayActive = false;
+                isPendingResponse = false;
+                ToggleLoadingScreen(false);
+                Debug.LogError($"Failed to fetch quiz data from {response.short_url}: {error}");
+            });
     }
 
     private IEnumerator ReadQuizPage(APIClient.QuizResponse quizData)
@@ -423,6 +428,9 @@ public class ARImageBehaviorManager : MonoBehaviour
             if (request.result == UnityWebRequest.Result.ConnectionError || request.result == UnityWebRequest.Result.ProtocolError)
             {
                 Debug.LogError($"Failed to fetch video: {request.error}");
+                isPendingResponse = false;
+                isOverlayActive = false;
+                ToggleLoadingScreen(false);
                 yield break;
             }
 
