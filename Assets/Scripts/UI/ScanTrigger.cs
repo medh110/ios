@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 
 public class ScanTrigger : MonoBehaviour
@@ -8,8 +9,11 @@ public class ScanTrigger : MonoBehaviour
     private ARImageBehaviorManager _imageBehavior;
     [SerializeField]
     private QRCodeDetector _qrReader;
+    [SerializeField]
+    private GameObject _scanIcon;
 
     private const string SCAN = "scan";
+    private const string SCAN_IDLE = "Idle";
 
     private bool scanning = false;
 
@@ -33,15 +37,27 @@ public class ScanTrigger : MonoBehaviour
 
     public void ScanFinished()
     {
+        var isMarkerFound = false;
         if (_qrReader.HasQRResult)
         {
-            _qrReader.ExecuteCachedResult();
+            isMarkerFound = _qrReader.ExecuteCachedResult();
         }
         else 
         {
             // Check if any existing marker is tracked
-            _imageBehavior.Scan();
+            isMarkerFound = _imageBehavior.Scan();
         }
+
+        ToggleScanIcon(!isMarkerFound);
         scanning = false;
+    }
+
+    internal void ToggleScanIcon(bool isEnabled)
+    {
+        this.gameObject.SetActive(isEnabled);
+        if (isEnabled) 
+        { 
+            _animator.SetTrigger(SCAN_IDLE);
+        }
     }
 }

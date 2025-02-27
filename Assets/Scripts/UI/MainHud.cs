@@ -11,6 +11,8 @@ public class MainHud : MonoBehaviour
     private GameObject _previewPage;
     [SerializeField]
     private GameObject _hudPage;
+    [SerializeField]
+    private ScanTrigger _scanTrigger;
     
     private TouchControls touchControls;
     private InputAction pinchGap;
@@ -167,6 +169,10 @@ public class MainHud : MonoBehaviour
         
         _previewPage.SetActive(onPreview);
         _hudPage.SetActive(!onPreview);
+        if (!onPreview)
+        {
+            _scanTrigger.ToggleScanIcon(true);
+        }
     }
 
     private bool CheckTargetScale(Vector3 targetScale, ARType currentType)
@@ -227,6 +233,16 @@ public class MainHud : MonoBehaviour
         // Apply the target scale if within the limit 
         currentMovableObject.transform.localScale = targetScale;
     }
+
+    public void ToggleHUD(bool isEnable)
+    {
+        this.gameObject.SetActive(isEnable);
+        if (isEnable)
+        {
+            _scanTrigger.ToggleScanIcon(true);
+        }
+    }
+
 
     private void Update()
     {

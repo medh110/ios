@@ -102,12 +102,16 @@ public class QRCodeDetector : MonoBehaviour
         }
     }
 
-    public void ExecuteCachedResult()
+    public bool ExecuteCachedResult()
     {
+        var IsMarkerFound = false;
         if (CachedResult != null)
         {
+            IsMarkerFound = true;
             ExecuteQRResult(CachedResult);
         }
+        
+        return IsMarkerFound;
     }
 
     private string ExtractShortCode(string shortUrl)

@@ -109,21 +109,28 @@ public class ARImageBehaviorManager : MonoBehaviour
         }
     }
 
-    public void Scan()
+    public bool Scan()
     {
         // If any overlay UI is active like quiz or video disable image tracking
         if (isOverlayActive || isPendingResponse)
         {
-            return;
+            return false;
+        }
+
+        if (currentTrackable == null)
+        {
+            return false;
         }
 
         // If cached marker is not on Tracking state means no marker is currently tracked
         if (currentTrackable.trackingState != TrackingState.Tracking)
         {
-            return;
+
+            return false;
         }
 
         FetchObjectAndExecuteBehavior(currentTrackable.referenceImage.name, currentTrackable.transform);
+        return true;
     }
 
     public IEnumerator ShowLoadingThenExecute(Action actionToExecute, float waitSeconds = 3f)
@@ -228,7 +235,7 @@ public class ARImageBehaviorManager : MonoBehaviour
     private void ToggleHudCanvas(bool isEnable)
     {
         // Toggle the hud canvas for overlay and preview mode
-        _hudCanvas.gameObject.SetActive(isEnable);
+        _hudCanvas.ToggleHUD(isEnable);
     }
 
     private void ToggleLoadingScreen(bool isEnable)
