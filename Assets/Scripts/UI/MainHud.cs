@@ -1,5 +1,7 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.XR.ARFoundation;
+using UnityEngine.XR.ARSubsystems;
 
 public class MainHud : MonoBehaviour
 {
@@ -29,6 +31,7 @@ public class MainHud : MonoBehaviour
     private bool isTouchScreenActive = true;
     private bool secondTouchInitiated = false;
     private bool hasInitialDistance = false;
+    private bool isFlashlightEnabled = false;
 
     private float prevDist;
     
@@ -153,7 +156,26 @@ public class MainHud : MonoBehaviour
 
     public void ToggleFlashLight()
     {
-        
+        var loader = LoaderUtility.GetActiveLoader();
+        var cameraSubsystem = loader != null ? loader.GetLoadedSubsystem<XRCameraSubsystem>() : null;
+        if (cameraSubsystem == null)
+        {
+            return;
+        }
+
+        if (cameraSubsystem.DoesCurrentCameraSupportTorch())
+        {
+            if (isFlashlightEnabled)
+            {
+                cameraSubsystem.requestedCameraTorchMode = XRCameraTorchMode.Off;
+                isFlashlightEnabled = false;
+            }
+            else 
+            {
+                cameraSubsystem.requestedCameraTorchMode = XRCameraTorchMode.On;
+                isFlashlightEnabled = true;
+            }
+        }
     }
 
     public void TogglePreview(bool onPreview)
