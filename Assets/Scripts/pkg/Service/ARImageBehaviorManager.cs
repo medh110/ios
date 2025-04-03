@@ -629,6 +629,8 @@ public class ARImageBehaviorManager : MonoBehaviour
                 break;
 
             default:
+                isPendingResponse = false;
+                _hudCanvas.ToggleHUD(true);
                 Debug.LogWarning($"Unhandled type: {response.type}");
                 break;
         }
