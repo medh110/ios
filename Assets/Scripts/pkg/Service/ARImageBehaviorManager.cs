@@ -26,6 +26,8 @@ public class ARImageBehaviorManager : MonoBehaviour
     private MainHud _hudCanvas;
     [SerializeField]
     private bool _touchToScan;
+    [SerializeField] 
+    private bool _localTesting;
     
     private ARTrackedImage currentTrackable;
     private TrackableId currentTrackableId;
@@ -35,7 +37,7 @@ public class ARImageBehaviorManager : MonoBehaviour
 
     private APIClient.QuizResponse sampleQuiz;
     private string sampleClip;
-    public bool isLocalTesting;
+    private bool isLocalTesting;
 
     private List<ARTrackedImage> trackedList = new List<ARTrackedImage>();
 
@@ -47,6 +49,14 @@ public class ARImageBehaviorManager : MonoBehaviour
 
     void OnEnable()
     {
+#if UNITY_EDITOR
+        // Give option to do local testing in editor
+        isLocalTesting = _localTesting;
+#else
+        // Always set local testing to false, cached asset won't work anyway outside editor
+        isLocalTesting = false;
+#endif
+        
         // This is just a sample data
         sampleQuiz = new APIClient.QuizResponse();
         sampleQuiz.questions = "what is the national flower of singapore";
