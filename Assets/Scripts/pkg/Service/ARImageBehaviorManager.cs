@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using Newtonsoft.Json;
 using UnityEngine;
 using UnityEngine.Networking;
 using UnityEngine.Video;
@@ -339,25 +340,59 @@ public class ARImageBehaviorManager : MonoBehaviour
     private void FetchAndDisplayQuiz(APIClient.ShortURLResponse response, Transform imageTransform)
     {
         CurrentType = ARType.Quiz;
-        apiClient.CallAPI(response.short_url, "GET", null,
-            content =>
+        try
+        {
+            // Parse the metadata JSON to extract the quiz_id
+            Debug.Log($"Parsing metadata: {response.metadata}");    
+
+            var metadata = JsonConvert.DeserializeObject<Dictionary<string, object>>(response.metadata);
+            if (metadata != null && metadata.ContainsKey("quiz_id"))
             {
-                var quizData = JsonUtility.FromJson<APIClient.QuizResponse>(content);
-                StartCoroutine(ReadQuizPage(quizData));
-            },
-            error => {
-                isOverlayActive = false;
-                isPendingResponse = false;
-                ToggleLoadingScreen(false);
-                Debug.LogError($"Failed to fetch quiz data from {response.short_url}: {error}");
-            });
+                string quizId = metadata["quiz_id"].ToString();
+                // Use FetchQuizFromAPI with the extracted quizId
+
+                Debug.Log($"Fetching quiz data from API using quiz_id: {quizId}");
+                apiClient.FetchQuizFromAPI(quizId,
+                    quizResponse =>
+                    {
+                        // Process the quiz response (e.g. start a coroutine to read the quiz page)
+                        Debug.Log($"Fetched quiz data: {quizResponse}");
+
+                        StartCoroutine(ReadQuizPage(quizResponse));
+                    },
+                    error =>
+                    {
+                        Debug.LogError($"Failed to fetch quiz data: {error}");
+                    });
+            }
+            else
+            {
+
+                Debug.LogWarning("Metadata does not contain a valid quiz_id. Defaulting to direct API call.");
+                // Fallback to the original behavior using the short_url
+                apiClient.CallAPI(response.short_url, "GET", null,
+                    content =>
+                    {
+                        var quizData = JsonUtility.FromJson<APIClient.QuizResponse>(content);
+                        StartCoroutine(ReadQuizPage(quizData));
+                    },
+                    error => Debug.LogError($"Failed to fetch quiz data from {response.short_url}: {error}"));
+            }
+        }
+        catch (Exception ex)
+        {
+            isOverlayActive = false;
+            isPendingResponse = false;
+            ToggleLoadingScreen(false);
+            Debug.LogError($"Error parsing metadata: {ex.Message}");
+        }
     }
 
     private IEnumerator ReadQuizPage(APIClient.QuizResponse quizData)
     {
         // Download the image need for quiz answer
         Debug.Log($"Fetching image for quiz: {quizData.image}");
-
+        yield return null;
         using (UnityWebRequest request = UnityWebRequest.Get(quizData.image))
         {
             yield return request.SendWebRequest();
@@ -368,7 +403,7 @@ public class ARImageBehaviorManager : MonoBehaviour
                     var data = request.downloadHandler.data;
                     var tex = new Texture2D(1, 1);
                     var isSuccess = ImageConversion.LoadImage(tex, data, false);
-
+        
                     if (isSuccess)
                     {
                         // If conversion succeeds set the texture to the container
