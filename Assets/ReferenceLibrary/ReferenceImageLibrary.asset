@@ -38,7 +38,7 @@ MonoBehaviour:
     m_Size: {x: 0.16, y: 0.12620865}
     m_SpecifySize: 1
     m_Name: ParentSunPrefab
-    m_Texture: {fileID: 0}
+    m_Texture: {fileID: 2800000, guid: 207c98b712afdee4ba95ced54e943c3b, type: 3}
   - m_SerializedGuid:
       m_GuidLow: 5318871780379466801
       m_GuidHigh: 15647703795452865686

@@ -2,7 +2,6 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using Newtonsoft.Json;
 using UnityEngine;
 using UnityEngine.Networking;
 using UnityEngine.Video;
@@ -24,7 +23,9 @@ public class ARImageBehaviorManager : MonoBehaviour
     private GameObject _loadingScreen;
     [SerializeField]
     private MainHud _hudCanvas;
-
+    [SerializeField]
+    private bool _touchToScan;
+    
     private ARTrackedImage currentTrackable;
     private TrackableId currentTrackableId;
 
@@ -35,8 +36,13 @@ public class ARImageBehaviorManager : MonoBehaviour
     private string sampleClip;
     public bool isLocalTesting;
 
+    private List<ARTrackedImage> trackedList = new List<ARTrackedImage>();
+
     public GameObject CurrentMovableObject { get; private set; }
     public ARType CurrentType { get; private set; }
+    public MarkerType CurrentMarkerType { get; private set; }
+    public bool CanScan => !isOverlayActive && !isPendingResponse;
+    public bool IsTouchToScan => _touchToScan;
 
     void OnEnable()
     {
@@ -75,8 +81,16 @@ public class ARImageBehaviorManager : MonoBehaviour
             return;
         }
 
+        trackedList.Clear();
+        trackedList.AddRange(eventArgs.updated);
+
         foreach (var trackedImage in eventArgs.updated)
         {
+            // Don't process marker if tracking state is limited, means marker is not tracked anymore
+            if (trackedImage.trackingState == TrackingState.Limited)
+            {
+                continue;
+            }
             // We only check for new marker if old marker is not detected
             if (trackedImage.trackableId != currentTrackableId)
             {
@@ -85,13 +99,38 @@ public class ARImageBehaviorManager : MonoBehaviour
                 {
                     currentTrackable = trackedImage;
                     currentTrackableId = trackedImage.trackableId;
-                    Debug.Log($"Image Updated: {trackedImage.referenceImage.name} State: {trackedImage.trackingState}");
-                    FetchObjectAndExecuteBehavior(trackedImage.referenceImage.name, trackedImage.transform);
+                    if (!_touchToScan)
+                    {
+                        FetchObjectAndExecuteBehavior(trackedImage.referenceImage.name, trackedImage.transform);
+                    }
                     break;
-
                 }
             }
         }
+    }
+
+    public bool Scan()
+    {
+        // If any overlay UI is active like quiz or video disable image tracking
+        if (isOverlayActive || isPendingResponse)
+        {
+            return false;
+        }
+
+        if (currentTrackable == null)
+        {
+            return false;
+        }
+
+        // If cached marker is not on Tracking state means no marker is currently tracked
+        if (currentTrackable.trackingState != TrackingState.Tracking)
+        {
+
+            return false;
+        }
+
+        FetchObjectAndExecuteBehavior(currentTrackable.referenceImage.name, currentTrackable.transform);
+        return true;
     }
 
     public IEnumerator ShowLoadingThenExecute(Action actionToExecute, float waitSeconds = 3f)
@@ -105,6 +144,7 @@ public class ARImageBehaviorManager : MonoBehaviour
 
     private void FetchObjectAndExecuteBehavior(string imageName, Transform imageTransform)
     {
+        CurrentMarkerType = MarkerType.Image;
         if (isLocalTesting)
         {
             isPendingResponse = true;
@@ -195,7 +235,7 @@ public class ARImageBehaviorManager : MonoBehaviour
     private void ToggleHudCanvas(bool isEnable)
     {
         // Toggle the hud canvas for overlay and preview mode
-        _hudCanvas.gameObject.SetActive(isEnable);
+        _hudCanvas.ToggleHUD(isEnable);
     }
 
     private void ToggleLoadingScreen(bool isEnable)
@@ -214,7 +254,7 @@ public class ARImageBehaviorManager : MonoBehaviour
             // We must unload the asset bundle upon closing the preview mode
             AssetBundle.UnloadAllAssetBundles(true);
         }
-
+        CurrentMarkerType = MarkerType.Invalid;
         CurrentType = ARType.Invalid;
         isOverlayActive = false;
     }
@@ -257,6 +297,7 @@ public class ARImageBehaviorManager : MonoBehaviour
                 {
                     // Enable HUD when close and set overlay to false to let the system know
                     // we can scan for another marker
+                    CurrentMarkerType = MarkerType.Invalid; 
                     CurrentType = ARType.Invalid;
                     isOverlayActive = false;
                     ToggleHudCanvas(true);
@@ -271,6 +312,14 @@ public class ARImageBehaviorManager : MonoBehaviour
 
         // Instantiate the pop-up video prefab
         CurrentMovableObject = Instantiate(popUpVideoPrefab, imageTransform);
+        if (CurrentMarkerType == MarkerType.Image)
+        {
+            CurrentMovableObject.transform.localScale = Vector2.one * currentTrackable.size;
+        }
+        else if (CurrentMarkerType == MarkerType.QR) 
+        {
+            CurrentMovableObject.transform.localScale = GetTrackableScale();
+        }
         var videoPlayer = CurrentMovableObject.GetComponentInChildren<UnityEngine.Video.VideoPlayer>();
 
         if (videoPlayer != null)
@@ -296,7 +345,12 @@ public class ARImageBehaviorManager : MonoBehaviour
                 var quizData = JsonUtility.FromJson<APIClient.QuizResponse>(content);
                 StartCoroutine(ReadQuizPage(quizData));
             },
-            error => Debug.LogError($"Failed to fetch quiz data from {response.short_url}: {error}"));
+            error => {
+                isOverlayActive = false;
+                isPendingResponse = false;
+                ToggleLoadingScreen(false);
+                Debug.LogError($"Failed to fetch quiz data from {response.short_url}: {error}");
+            });
     }
 
     private IEnumerator ReadQuizPage(APIClient.QuizResponse quizData)
@@ -338,6 +392,7 @@ public class ARImageBehaviorManager : MonoBehaviour
         quizPrefab.SetOnCloseAction(() =>
         {
             // Set overlay to false and enable hud when quiz page is closed
+            CurrentMarkerType = MarkerType.Invalid;
             CurrentType = ARType.Invalid;
             isOverlayActive = false;
             ToggleHudCanvas(true);
@@ -376,6 +431,9 @@ public class ARImageBehaviorManager : MonoBehaviour
             if (request.result == UnityWebRequest.Result.ConnectionError || request.result == UnityWebRequest.Result.ProtocolError)
             {
                 Debug.LogError($"Failed to fetch video: {request.error}");
+                isPendingResponse = false;
+                isOverlayActive = false;
+                ToggleLoadingScreen(false);
                 yield break;
             }
 
@@ -397,6 +455,7 @@ public class ARImageBehaviorManager : MonoBehaviour
             {
                 if (isOverlayActive)
                 {
+                    isPendingResponse = false;
                     isOverlayActive = false;
                     ToggleHudCanvas(true);
                 }
@@ -430,6 +489,9 @@ public class ARImageBehaviorManager : MonoBehaviour
                     GameObject prefab = bundle.LoadAsset<GameObject>(filename);
 
                     CurrentMovableObject = Instantiate(prefab, parentTransform.position, Quaternion.identity);
+                    isOverlayActive = true;
+                    _hudCanvas.TogglePreview(true);
+
 #if UNITY_EDITOR
                     // We only do this for editor, a certain issue exist that only happens in editor and this
                     // is the fix
@@ -437,15 +499,14 @@ public class ARImageBehaviorManager : MonoBehaviour
 #endif
                     break;
                 default:
+                    isOverlayActive = false;
                     Debug.LogError(webRequest.error);
                     break;
             }
 
             // Set overlay to true to prevent system from scanning markers
             // and enable preview mode of HUD
-            isOverlayActive = true;
             ToggleLoadingScreen(false);
-            _hudCanvas.TogglePreview(true);
             isPendingResponse = false;
         }
     }
@@ -453,39 +514,83 @@ public class ARImageBehaviorManager : MonoBehaviour
     public void ExecuteBehaviorFromShortURL(string shortcode)
     {
         Debug.Log($"Fetching object from short URL: {shortcode}");
+        CurrentMarkerType = MarkerType.QR;
 
-
-        apiClient.GetObjectProperties(
-                shortcode,
-                 response =>
-                            {
-                                Debug.Log($"Object fetched: Type={response.type}, Metadata={response.metadata}");
-                                // Pass the object to the behavior manager for execution
-                                ExecuteBehaviorFromObject(response);
-                            },
-            error =>
+        if (isLocalTesting)
+        {
+            isPendingResponse = true;
+            // For local testing only using reference cached data
+            switch (shortcode)
             {
-                Debug.LogError($"Failed to fetch object properties for short code {shortcode}: {error}");
-            });
+                case "jSzOjv":
+                    StartCoroutine(ShowLoadingThenExecute(() =>
+                    {
+                        CurrentType = ARType.Quiz;
+                        StartCoroutine(ReadQuizPage(sampleQuiz));
+                    }));
+                    break;
+                case "rYb8cS":
+                    StartCoroutine(ShowLoadingThenExecute(() =>
+                    {
+                        CurrentType = ARType.OverlayVideo;
+                        InstantiateAndConfigureOverlayVideo(sampleClip);
+                    }));
+                    break;
+
+                case "1V2S2S":
+                    StartCoroutine(ShowLoadingThenExecute(() =>
+                    {
+                        CurrentType = ARType.PopupVideo;
+                        InstantiateAndConfigurePopupVideo(sampleClip, GetQRTransform());
+                    }));
+                    break;
+
+                case "1FENoV":
+                    StartCoroutine(ShowLoadingThenExecute(() =>
+                    {
+                        var url = $"file:///{Application.dataPath}/../AssetBundle/Android/ParentMerlionFab";
+                        CurrentType = ARType.Model;
+                        StartCoroutine(LoadAndAttachModel(url, GetQRTransform()));
+                    }));
+                    break;
+            }
+        }
+        else
+        {
+            isPendingResponse = true;
+            apiClient.GetObjectProperties(
+                    shortcode,
+                     response =>
+                     {
+                         Debug.Log($"Object fetched: Type={response.type}, Metadata={response.metadata}");
+                         // Pass the object to the behavior manager for execution
+                         ExecuteBehaviorFromObject(response);
+                     },
+                error =>
+                {
+                    Debug.LogError($"Failed to fetch object properties for short code {shortcode}: {error}");
+                });
+        }
+
 
 
     }
     public void ExecuteBehaviorFromObject(APIClient.ShortURLResponse response)
     {
         Debug.Log($"Executing behavior for object: Type={response.type}, Metadata={response.metadata}");
-
+        Transform qrTransform = GetQRTransform();
         switch (response.type)
         {
             case "video":
-                HandleVideo(response);
+                HandleVideo(response, qrTransform);
                 break;
 
             case "quiz":
-                HandleQuiz(response);
+                FetchAndDisplayQuiz(response, null);
                 break;
 
             case "model":
-                //HandleModel(response);
+                FetchAndDisplayModel(response, qrTransform);
                 break;
 
             default:
@@ -493,68 +598,55 @@ public class ARImageBehaviorManager : MonoBehaviour
                 break;
         }
     }
-    private void HandleVideo(APIClient.ShortURLResponse response)
+    private void HandleVideo(APIClient.ShortURLResponse response, Transform imageTranform)
     {
         if (response.metadata.Contains("popup"))
         {
-            InstantiateAndConfigurePopupVideo(response.short_url, null);
+            CurrentType = ARType.PopupVideo;
+            InstantiateAndConfigurePopupVideo(response.short_url, imageTranform);
         }
         else if (response.metadata.Contains("overlay"))
         {
+            CurrentType = ARType.OverlayVideo;
             InstantiateAndConfigureOverlayVideo(response.short_url); // No marker needed for QR code
         }
         else
         {
             Debug.LogWarning($"Unknown metadata for video: {response.metadata}. Defaulting to popup.");
-            InstantiateAndConfigurePopupVideo(response.short_url, null);
+
+            CurrentType = ARType.PopupVideo;
+            InstantiateAndConfigurePopupVideo(response.short_url, imageTranform);
         }
     }
 
-    private void HandleQuiz(APIClient.ShortURLResponse response)
+    private Transform GetQRTransform() 
     {
-        try
+        Transform qrTransform = null;
+        if (trackedList.Any())
         {
-            // Parse the metadata JSON to extract the quiz_id
-            Debug.Log($"Parsing metadata: {response.metadata}");    
-
-            var metadata = JsonConvert.DeserializeObject<Dictionary<string, object>>(response.metadata);
-            if (metadata != null && metadata.ContainsKey("quiz_id"))
+            // Returns the first trackable image with null as reference image name, QR doesn't have reference image name 
+            var trackedImage = trackedList.First(item => item.trackingState == TrackingState.Tracking && string.IsNullOrEmpty(item.referenceImage.name));
+            if (trackedImage != null)
             {
-                string quizId = metadata["quiz_id"].ToString();
-                // Use FetchQuizFromAPI with the extracted quizId
-
-                Debug.Log($"Fetching quiz data from API using quiz_id: {quizId}");
-                apiClient.FetchQuizFromAPI(quizId,
-                    quizResponse =>
-                    {
-                        // Process the quiz response (e.g. start a coroutine to read the quiz page)
-                        Debug.Log($"Fetched quiz data: {quizResponse}");
-
-                        StartCoroutine(ReadQuizPage(quizResponse));
-                    },
-                    error =>
-                    {
-                        Debug.LogError($"Failed to fetch quiz data: {error}");
-                    });
-            }
-            else
-            {
-
-                Debug.LogWarning("Metadata does not contain a valid quiz_id. Defaulting to direct API call.");
-                // Fallback to the original behavior using the short_url
-                apiClient.CallAPI(response.short_url, "GET", null,
-                    content =>
-                    {
-                        var quizData = JsonUtility.FromJson<APIClient.QuizResponse>(content);
-                        StartCoroutine(ReadQuizPage(quizData));
-                    },
-                    error => Debug.LogError($"Failed to fetch quiz data from {response.short_url}: {error}"));
+                qrTransform = trackedImage.transform;
             }
         }
-        catch (Exception ex)
+        return qrTransform;
+    }
+
+    private Vector2 GetTrackableScale()
+    {
+        // Returns the QR size 
+        Vector2 scale = Vector2.one;
+        if (trackedList.Any())
         {
-            Debug.LogError($"Error parsing metadata: {ex.Message}");
+            // Returns the first trackable image with null as reference image name, QR doesn't have reference image name 
+            var trackedImage = trackedList.First(item => item.trackingState == TrackingState.Tracking && string.IsNullOrEmpty(item.referenceImage.name));
+            if (trackedImage != null)
+            {
+                scale = trackedImage.size;
+            }
         }
+        return scale;
     }
 }
-

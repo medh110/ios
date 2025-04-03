@@ -1,5 +1,4 @@
 using System;
-using System.Collections;
 using Unity.Collections;
 using UnityEngine;
 using UnityEngine.XR.ARFoundation;
@@ -9,11 +8,18 @@ using ZXing;
 public class QRCodeDetector : MonoBehaviour
 {
     [Header("Dependencies")]
-    [SerializeField] private ARCameraManager arCameraManager; // AR Camera Manager for acquiring frames
-    [SerializeField] private ARImageBehaviorManager behaviorManager; // Reference to ARImageBehaviorManager for executing behavior
-    [SerializeField] private TMPro.TextMeshProUGUI qrResultText; // Optional: Text display for QR result
+    [SerializeField] 
+    private ARCameraManager arCameraManager; // AR Camera Manager for acquiring frames
+    [SerializeField] 
+    private ARImageBehaviorManager behaviorManager; // Reference to ARImageBehaviorManager for executing behavior
+    [SerializeField] 
+    private TMPro.TextMeshProUGUI qrResultText; // Optional: Text display for QR result
 
     private IBarcodeReader qrReader; // ZXing QR code reader
+    private Result CachedResult;
+
+    public bool HasQRResult { get; private set; }
+
 
     void Awake()
     {
@@ -40,6 +46,7 @@ public class QRCodeDetector : MonoBehaviour
     {
         if (!arCameraManager.TryAcquireLatestCpuImage(out XRCpuImage cpuImage))
         {
+            HasQRResult = false;
             return;
         }
 
@@ -56,31 +63,55 @@ public class QRCodeDetector : MonoBehaviour
             var buffer = new NativeArray<byte>(cpuImage.GetConvertedDataSize(conversionParams), Allocator.Temp);
             cpuImage.Convert(conversionParams, buffer);
 
-            var result = qrReader.Decode(buffer.ToArray(), conversionParams.outputDimensions.x, conversionParams.outputDimensions.y, RGBLuminanceSource.BitmapFormat.RGBA32);
-            if (result != null)
+            CachedResult = qrReader.Decode(buffer.ToArray(), conversionParams.outputDimensions.x, conversionParams.outputDimensions.y, RGBLuminanceSource.BitmapFormat.RGBA32);
+            if (CachedResult != null)
             {
-                Debug.Log($"QR Code Detected: {result.Text}");
-                if (qrResultText != null)
+                HasQRResult = true;
+                if (!behaviorManager.IsTouchToScan)
                 {
-                    qrResultText.text = $"QR Code: {result.Text}";
+                    ExecuteQRResult(CachedResult);
                 }
-
-                // Extract short_code from the short_url (e.g., "M8MdiW" from "https://epy.digital/M8MdiW")
-                string shortCode = ExtractShortCode(result.Text);
-                Debug.Log($"Extracted Short Code: {shortCode}");
-
-                // Fetch object properties from backend
-                if (!string.IsNullOrEmpty(shortCode))
-                {
-                    if (behaviorManager != null)
-                    {
-                        behaviorManager.ExecuteBehaviorFromShortURL(shortCode);
-                    }
-                }
+            }
+            else 
+            {
+                HasQRResult = false;
             }
 
             buffer.Dispose();
         }
+    }
+
+    private void ExecuteQRResult(Result cachedResult)
+    {
+        if (qrResultText != null)
+        {
+            qrResultText.text = $"QR Code: {CachedResult.Text}";
+        }
+
+        // Extract short_code from the short_url (e.g., "M8MdiW" from "https://epy.digital/M8MdiW")
+        string shortCode = ExtractShortCode(CachedResult.Text);
+        Debug.Log($"Extracted Short Code: {shortCode}");
+
+        // Fetch object properties from backend
+        if (!string.IsNullOrEmpty(shortCode))
+        {
+            if (behaviorManager != null)
+            {
+                behaviorManager.ExecuteBehaviorFromShortURL(shortCode);
+            }
+        }
+    }
+
+    public bool ExecuteCachedResult()
+    {
+        var IsMarkerFound = false;
+        if (CachedResult != null)
+        {
+            IsMarkerFound = true;
+            ExecuteQRResult(CachedResult);
+        }
+        
+        return IsMarkerFound;
     }
 
     private string ExtractShortCode(string shortUrl)
