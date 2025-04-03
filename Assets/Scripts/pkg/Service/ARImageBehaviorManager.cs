@@ -1,6 +1,8 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Linq;
+using Newtonsoft.Json;
 using UnityEngine;
 using UnityEngine.Networking;
 using UnityEngine.Video;
@@ -20,12 +22,12 @@ public class ARImageBehaviorManager : MonoBehaviour
 
     [SerializeField]
     private GameObject _loadingScreen;
-    [SerializeField] 
+    [SerializeField]
     private MainHud _hudCanvas;
-    
+
     private ARTrackedImage currentTrackable;
     private TrackableId currentTrackableId;
-    
+
     private bool isOverlayActive = false;
     private bool isPendingResponse = false;
 
@@ -48,10 +50,10 @@ public class ARImageBehaviorManager : MonoBehaviour
         sampleQuiz.explanation = "Papilionanthe Miss Joaquim, Also known as the Singapore orchid, this hybrid orchid is the national flower of Singapore. It was chosen for its resilience and vibrant colors.";
         sampleQuiz.correct_answer = sampleQuiz.answer_c;
         sampleQuiz.image = $"file:///{Application.dataPath}/../SampleAssets/singapore-orchids1.jpg";
-        
+
         // This is just a sample clip for popup video and overlay video
         sampleClip = $"file:///{Application.dataPath}/../SampleAssets/SampleVideo.mp4";
-        
+
         trackedImageManager.trackablesChanged.AddListener(OnTrackedImagesChanged);
     }
     void OnDisable()
@@ -123,15 +125,15 @@ public class ARImageBehaviorManager : MonoBehaviour
                         InstantiateAndConfigureOverlayVideo(sampleClip);
                     }));
                     break;
-                
+
                 case "ParentSunPrefab":
                     StartCoroutine(ShowLoadingThenExecute(() =>
                     {
-                         CurrentType = ARType.PopupVideo;
-                         InstantiateAndConfigurePopupVideo(sampleClip, imageTransform);
+                        CurrentType = ARType.PopupVideo;
+                        InstantiateAndConfigurePopupVideo(sampleClip, imageTransform);
                     }));
                     break;
-                
+
                 case "ParentMerlionFab":
                     StartCoroutine(ShowLoadingThenExecute(() =>
                     {
@@ -148,7 +150,7 @@ public class ARImageBehaviorManager : MonoBehaviour
             // Enable loading screen while waiting for response
             isPendingResponse = true;
             ToggleLoadingScreen(true);
-            
+
             // Fetch the object tied to the marker using the `original` field
             apiClient.GetObjectProperties(
                 imageName,
@@ -201,18 +203,18 @@ public class ARImageBehaviorManager : MonoBehaviour
         // This enable/disable loading screen
         _loadingScreen.SetActive(isEnable);
     }
-    
+
     public void OnPreviewClosed()
     {
         // Destroy the current spawned model / video 
         Destroy(CurrentMovableObject);
-        
+
         if (CurrentType == ARType.Model)
         {
             // We must unload the asset bundle upon closing the preview mode
             AssetBundle.UnloadAllAssetBundles(true);
         }
-        
+
         CurrentType = ARType.Invalid;
         isOverlayActive = false;
     }
@@ -300,7 +302,9 @@ public class ARImageBehaviorManager : MonoBehaviour
     private IEnumerator ReadQuizPage(APIClient.QuizResponse quizData)
     {
         // Download the image need for quiz answer
-        using(UnityWebRequest request = UnityWebRequest.Get(quizData.image))
+        Debug.Log($"Fetching image for quiz: {quizData.image}");
+
+        using (UnityWebRequest request = UnityWebRequest.Get(quizData.image))
         {
             yield return request.SendWebRequest();
             switch (request.result)
@@ -310,7 +314,7 @@ public class ARImageBehaviorManager : MonoBehaviour
                     var data = request.downloadHandler.data;
                     var tex = new Texture2D(1, 1);
                     var isSuccess = ImageConversion.LoadImage(tex, data, false);
-                    
+
                     if (isSuccess)
                     {
                         // If conversion succeeds set the texture to the container
@@ -327,6 +331,7 @@ public class ARImageBehaviorManager : MonoBehaviour
             }
         }
 
+        Debug.Log("Displaying quiz page...");
         // Disable HUD and show the quiz page
         ToggleHudCanvas(false);
         quizPrefab.SetQuizData(quizData);
@@ -337,7 +342,7 @@ public class ARImageBehaviorManager : MonoBehaviour
             isOverlayActive = false;
             ToggleHudCanvas(true);
         });
-        
+
         // Set overlay to true to prevent system from scanning another marker
         isOverlayActive = true;
         isPendingResponse = false;
@@ -395,7 +400,7 @@ public class ARImageBehaviorManager : MonoBehaviour
                     isOverlayActive = false;
                     ToggleHudCanvas(true);
                 }
-                Debug.LogError($"VideoPlayer error: {message}");    
+                Debug.LogError($"VideoPlayer error: {message}");
             };
         }
         isPlaying = false; // Reset the flag
@@ -414,16 +419,16 @@ public class ARImageBehaviorManager : MonoBehaviour
             yield return webRequest.SendWebRequest();
             switch (webRequest.result)
             {
-                case  UnityWebRequest.Result.Success:
+                case UnityWebRequest.Result.Success:
                     // Must replace this to the exact file name instead of getting the last part
                     // of the URL in case url doesn't supply the name
                     var filename = modelUrl.Split('/').Last();
                     var bundle = DownloadHandlerAssetBundle.GetContent(webRequest);
-                    
+
                     // Load the asset in the asset bundle and instantiate it in the game world
                     // assign the instantiated gameobject in CurrentMovableObject for controls
                     GameObject prefab = bundle.LoadAsset<GameObject>(filename);
-                    
+
                     CurrentMovableObject = Instantiate(prefab, parentTransform.position, Quaternion.identity);
 #if UNITY_EDITOR
                     // We only do this for editor, a certain issue exist that only happens in editor and this
@@ -450,7 +455,7 @@ public class ARImageBehaviorManager : MonoBehaviour
         Debug.Log($"Fetching object from short URL: {shortcode}");
 
 
-        apiClient.GetObjectProperties (
+        apiClient.GetObjectProperties(
                 shortcode,
                  response =>
                             {
@@ -476,7 +481,7 @@ public class ARImageBehaviorManager : MonoBehaviour
                 break;
 
             case "quiz":
-                //HandleQuiz(response);
+                HandleQuiz(response);
                 break;
 
             case "model":
@@ -504,4 +509,52 @@ public class ARImageBehaviorManager : MonoBehaviour
             InstantiateAndConfigurePopupVideo(response.short_url, null);
         }
     }
+
+    private void HandleQuiz(APIClient.ShortURLResponse response)
+    {
+        try
+        {
+            // Parse the metadata JSON to extract the quiz_id
+            Debug.Log($"Parsing metadata: {response.metadata}");    
+
+            var metadata = JsonConvert.DeserializeObject<Dictionary<string, object>>(response.metadata);
+            if (metadata != null && metadata.ContainsKey("quiz_id"))
+            {
+                string quizId = metadata["quiz_id"].ToString();
+                // Use FetchQuizFromAPI with the extracted quizId
+
+                Debug.Log($"Fetching quiz data from API using quiz_id: {quizId}");
+                apiClient.FetchQuizFromAPI(quizId,
+                    quizResponse =>
+                    {
+                        // Process the quiz response (e.g. start a coroutine to read the quiz page)
+                        Debug.Log($"Fetched quiz data: {quizResponse}");
+
+                        StartCoroutine(ReadQuizPage(quizResponse));
+                    },
+                    error =>
+                    {
+                        Debug.LogError($"Failed to fetch quiz data: {error}");
+                    });
+            }
+            else
+            {
+
+                Debug.LogWarning("Metadata does not contain a valid quiz_id. Defaulting to direct API call.");
+                // Fallback to the original behavior using the short_url
+                apiClient.CallAPI(response.short_url, "GET", null,
+                    content =>
+                    {
+                        var quizData = JsonUtility.FromJson<APIClient.QuizResponse>(content);
+                        StartCoroutine(ReadQuizPage(quizData));
+                    },
+                    error => Debug.LogError($"Failed to fetch quiz data from {response.short_url}: {error}"));
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"Error parsing metadata: {ex.Message}");
+        }
+    }
 }
+

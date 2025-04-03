@@ -17,7 +17,7 @@ public class APIClient : MonoBehaviour
 
     private IEnumerator SendRequest(string endpoint, string method, object requestBody, Action<string> onSuccess, Action<string> onError)
     {
-        string url = endpoint; // Use the endpoint directly, assuming it's a full URL if it starts with "http"
+        string url = endpoint; // Use the endpoint directly, assuming it's a full URL if it starts with "https"
 
         // Ensure the endpoint is treated correctly
         if (!endpoint.StartsWith("https"))
@@ -254,6 +254,40 @@ public class APIClient : MonoBehaviour
                 onError?.Invoke($"API call failed: {error}");
             });
     }
+    // Updated FetchFileCollection method
+    public void FetchFileCollection(string collection_id, Action<FileCollectionResponse> onSuccess, Action<string> onError)
+    {
+        // Endpoint for fetching file collection
+        string endpoint = $"/get_file_collection?id={collection_id}";
+
+        // Use the centralized CallAPI method
+        CallAPI(endpoint, "GET", null,
+            response =>
+            {
+                try
+                {
+                    // Deserialize the response into a FileCollectionResponse object
+                    var parsedResponse = JsonConvert.DeserializeObject<FileCollectionResponse>(response);
+                    if (parsedResponse != null && parsedResponse.files != null)
+                    {
+                        onSuccess?.Invoke(parsedResponse);
+                    }
+                    else
+                    {
+                        onError?.Invoke("Invalid API response or no files found.");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    onError?.Invoke($"Parsing error: {ex.Message}");
+                }
+            },
+            error =>
+            {
+                onError?.Invoke($"API call failed: {error}");
+            });
+    }
+
 
     [System.Serializable]
     private class ImageApiResponse
@@ -261,34 +295,106 @@ public class APIClient : MonoBehaviour
         public List<string> imageUrls; // Ensure this matches the API response format
     }
 
-
-    [System.Serializable]
-    public class QuizResponse
+    public void FetchQuizFromAPI(string quizId, Action<QuizResponse> onSuccess, Action<string> onError)
     {
-        public int id { get; set; }
-        public string questions { get; set; }
-        public string answer_a { get; set; }
-        public string answer_b { get; set; }
-        public string answer_c { get; set; }
-        public string answer_d { get; set; }
-        public string correct_answer { get; set; }
-        public string explanation { get; set; }
-        public string image { get; set; }
+        Debug.Log($"Fetching quiz with ID: {quizId}");
+        string endpoint = $"/retrieve_quiz?id={quizId}";
+
+        CallAPI(endpoint, "GET", null,
+            response =>
+            {
+                try
+                {
+                    Debug.Log("Deserializing API response...");
+                    // Deserialize the API response into a QuizResponse object
+                    var parsedResponse = JsonConvert.DeserializeObject<QuizResponse>(response);
+                    if (parsedResponse != null)
+                    {
+                        Debug.Log("Quiz data retrieved successfully.");
+                        onSuccess?.Invoke(parsedResponse);
+                    }
+                    else
+                    {
+                        Debug.Log("Invalid API response or no quiz data found.");
+                        onError?.Invoke("Invalid API response or no quiz data found.");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.Log($"Parsing error: {ex.Message}");
+                    onError?.Invoke($"Parsing error: {ex.Message}");
+                }
+            },
+            error =>
+            {
+
+                Debug.Log($"API call failed: {error}");
+                onError?.Invoke($"API call failed: {error}");
+            });
     }
 
-    [System.Serializable]
-    // Classes for Parsing Responses
-    public class ShortURLResponse
+    /// <summary>
+    /// Retrieves a file from the given URL and returns the file data as a byte array.
+    /// </summary>
+    /// <param name="fileUrl">The URL of the file to download.</param>
+    /// <param name="onSuccess">Callback invoked with the file data on success.</param>
+    /// <param name="onError">Callback invoked with an error message on failure.</param>
+    public void FetchFileFromAPI(string fileUrl, Action<byte[]> onSuccess, Action<string> onError)
     {
-        public string short_code { get; set; }
-        public string short_url { get; set; }
-        public string qr_code { get; set; }
-        public string type { get; set; }
-        public string original { get; set; }
-        public string domain { get; set; }
-        public string metadata { get; set; }
+        StartCoroutine(FetchFileCoroutine(fileUrl, onSuccess, onError));
     }
 
+    /// <summary>
+    /// Coroutine that downloads a file using UnityWebRequest.
+    /// </summary>
+    private IEnumerator FetchFileCoroutine(string fileUrl, Action<byte[]> onSuccess, Action<string> onError)
+    {
+        using (UnityWebRequest request = UnityWebRequest.Get(fileUrl))
+        {
+            yield return request.SendWebRequest();
+
+#if UNITY_2020_1_OR_NEWER
+            if (request.result != UnityWebRequest.Result.Success)
+#else
+            if (request.isNetworkError || request.isHttpError)
+#endif
+            {
+                onError?.Invoke($"Error fetching file: {request.error}");
+            }
+            else
+            {
+                onSuccess?.Invoke(request.downloadHandler.data);
+            }
+        }
+    }
+
+    // Optional: A helper method if you want to directly retrieve an image as a Texture2D
+    public void FetchImageFromAPI(string imageUrl, Action<Texture2D> onSuccess, Action<string> onError)
+    {
+        StartCoroutine(FetchImageCoroutine(imageUrl, onSuccess, onError));
+    }
+
+    private IEnumerator FetchImageCoroutine(string imageUrl, Action<Texture2D> onSuccess, Action<string> onError)
+    {
+        using (UnityWebRequest request = UnityWebRequestTexture.GetTexture(imageUrl))
+        {
+            yield return request.SendWebRequest();
+
+#if UNITY_2020_1_OR_NEWER
+            if (request.result != UnityWebRequest.Result.Success)
+#else
+            if (request.isNetworkError || request.isHttpError)
+#endif
+            {
+                onError?.Invoke($"Error fetching image: {request.error}");
+            }
+            else
+            {
+                Texture2D texture = DownloadHandlerTexture.GetContent(request);
+                onSuccess?.Invoke(texture);
+            }
+        }
+    }
 
     public void FetchQuestionsFromAPI(Action<List<quizQuestions>> onSuccess, Action<string> onError)
     {
@@ -335,4 +441,64 @@ public class APIClient : MonoBehaviour
                 onError?.Invoke(error);
             });
     }
+
+
+    
+    [System.Serializable]
+    public class QuizResponse
+    {
+        public int id { get; set; }
+        public string questions { get; set; }
+        public string answer_a { get; set; }
+        public string answer_b { get; set; }
+        public string answer_c { get; set; }
+        public string answer_d { get; set; }
+        public string correct_answer { get; set; }
+        public string explanation { get; set; }
+        public string image { get; set; }
+    }
+
+    [System.Serializable]
+    // Classes for Parsing Responses
+    public class ShortURLResponse
+    {
+        public string short_code { get; set; }
+        public string short_url { get; set; }
+        public string qr_code { get; set; }
+        public string type { get; set; }
+        public string original { get; set; }
+        public string domain { get; set; }
+        public string metadata { get; set; }
+    }
+
+    // New classes to match the API response structure
+    [System.Serializable]
+    public class FileCollectionResponse
+    {
+        public Collection collection { get; set; }
+        public List<FileData> files { get; set; }
+    }
+
+    [System.Serializable]
+    public class Collection
+    {
+        public string id { get; set; }
+        public string name { get; set; }
+        public string permission { get; set; }
+        public string user_id { get; set; }
+        public long created_at { get; set; }
+        public long updated_at { get; set; }
+    }
+
+    [System.Serializable]
+    public class FileData
+    {
+        public string id { get; set; }
+        public string file_id { get; set; }
+        public string collection_id { get; set; }
+        public string metadata { get; set; }
+        public int created_at { get; set; }
+        public int updated_at { get; set; }
+    }
+    
 }
