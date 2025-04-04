@@ -456,7 +456,7 @@ public class APIClient : MonoBehaviour
         StartCoroutine(DownloadFileAsTextureCoroutine(fileId, onSuccess, onError));
     }
 
-    private IEnumerator DownloadFileAsTextureCoroutine(string fileId, Action<Texture2D> onSuccess, Action<string> onError)
+    public IEnumerator DownloadFileAsTextureCoroutine(string fileId, Action<Texture2D> onSuccess, Action<string> onError)
     {
         // Build the URL using the fileId.
         string url = $"{BASE_URL}/download_file?file_id={fileId}";

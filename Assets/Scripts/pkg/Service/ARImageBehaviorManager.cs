@@ -403,38 +403,10 @@ public class ARImageBehaviorManager : MonoBehaviour
         // Download the image need for quiz answer
         Debug.Log($"Fetching image for quiz: {quizData.image}");
         yield return null;
-
-        /*
-        using (UnityWebRequest request = UnityWebRequest.Get(quizData.image))
-        {
-            yield return request.SendWebRequest();
-            switch (request.result)
-            {
-                case UnityWebRequest.Result.Success:
-                    // Convert the downloaded byte to texture 
-                    var data = request.downloadHandler.data;
-                    var tex = new Texture2D(1, 1);
-                    var isSuccess = ImageConversion.LoadImage(tex, data, false);
         
-                    if (isSuccess)
-                    {
-                        // If conversion succeeds set the texture to the container
-                        quizPrefab.SetIcon(tex);
-                    }
-                    else
-                    {
-                        quizPrefab.SetEmpty();
-                    }
-                    break;
-                default:
-                    Debug.LogError(request.error);
-                    break;
-            }
-        }
-        */
         Debug.Log($"Downloading image from URL: {quizData.image}");
-
-        apiClient.DownloadFileAsTexture(quizData.image, texture =>
+        
+        yield return apiClient.DownloadFileAsTextureCoroutine(quizData.image, texture =>
         {
             // When download and conversion succeed, set the icon.
             quizPrefab.SetIcon(texture);
@@ -618,6 +590,7 @@ public class ARImageBehaviorManager : MonoBehaviour
         else
         {
             isPendingResponse = true;
+            ToggleLoadingScreen(true);
             apiClient.GetObjectProperties(
                     shortcode,
                      response =>
