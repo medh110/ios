@@ -403,6 +403,8 @@ public class ARImageBehaviorManager : MonoBehaviour
         // Download the image need for quiz answer
         Debug.Log($"Fetching image for quiz: {quizData.image}");
         yield return null;
+
+        /*
         using (UnityWebRequest request = UnityWebRequest.Get(quizData.image))
         {
             yield return request.SendWebRequest();
@@ -429,6 +431,19 @@ public class ARImageBehaviorManager : MonoBehaviour
                     break;
             }
         }
+        */
+        Debug.Log($"Downloading image from URL: {quizData.image}");
+
+        apiClient.DownloadFileAsTexture(quizData.image, texture =>
+        {
+            // When download and conversion succeed, set the icon.
+            quizPrefab.SetIcon(texture);
+        }, error =>
+        {
+            Debug.LogError(error);
+            quizPrefab.SetEmpty();
+        });
+
 
         Debug.Log("Displaying quiz page...");
         // Disable HUD and show the quiz page
