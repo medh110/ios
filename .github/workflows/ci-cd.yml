@@ -68,6 +68,16 @@ jobs:
           path: build/Android
           retention-days: 3
           
+  deploy-to-firebase:
+    runs-on: ubuntu-latest
+    needs: build-android
+    steps:
+      - name: Download APK artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: Build-Android
+          path: build/Android
+
       - name: Install Firebase CLI
         run: |
           curl -sL https://firebase.tools | bash
@@ -75,6 +85,6 @@ jobs:
       - name: Deploy to Firebase App Distribution
         run: |
           firebase appdistribution:distribute build/Android/*.apk \
-            --app ${{ secrets.FIREBASE_APP_ID}} \
+            --app ${{ secrets.FIREBASE_APP_ID }} \
             --token ${{ secrets.FIREBASE_TOKEN }} \
             --groups testers
