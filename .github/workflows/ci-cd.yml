@@ -4,10 +4,10 @@ on:
   push:
     branches:
       - main
-    paths:
-      - 'Assets/**'
-      - 'Packages/**'
-      - 'ProjectSettings/**'
+    # paths:
+    #   - 'Assets/**'
+    #   - 'Packages/**'
+    #   - 'ProjectSettings/**'
 
 jobs:
   build-android:
