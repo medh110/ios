@@ -190,7 +190,7 @@ public class ARImageBehaviorManager : MonoBehaviour
                     {
                         var url = $"file:///{Application.dataPath}/../AssetBundle/Android/ParentMerlionFab";
                         CurrentType = ARType.Model;
-                        StartCoroutine(LoadAndAttachModel(url, imageTransform));
+                        StartCoroutine(LoadAndAttachModel(url, imageTransform, "ParentMerlionFab"));
                     }));
                     break;
             }
@@ -222,7 +222,7 @@ public class ARImageBehaviorManager : MonoBehaviour
                             FetchAndDisplayQuiz(response, imageTransform);
                             break;
 
-                        case "model":
+                        case "3d":
                             FetchAndDisplayModel(response, imageTransform);
                             break;
 
@@ -285,7 +285,7 @@ public class ARImageBehaviorManager : MonoBehaviour
         else
         {
             Debug.LogWarning("Unknown video metadata. Defaulting to popup.");
-            InstantiateAndConfigurePopupVideo(response.short_url, imageTransform);
+            InstantiateAndConfigureOverlayVideo(response.short_url);
         }
     }
 
@@ -499,11 +499,22 @@ public class ARImageBehaviorManager : MonoBehaviour
     private void FetchAndDisplayModel(APIClient.ShortURLResponse response, Transform imageTransform)
     {
         CurrentType = ARType.Model;
-        StartCoroutine(LoadAndAttachModel(response.short_url, imageTransform));
+        var filename = response.short_url.Split('/').Last();
+        if (!isLocalTesting)
+        {
+            var metadata = JsonConvert.DeserializeObject<Dictionary<string, object>>(response.metadata);
+            if (metadata.ContainsKey("filename"))
+            {
+                filename = metadata["filename"].ToString();
+            }
+        }
+
+        StartCoroutine(LoadAndAttachModel(response.short_url, imageTransform, filename));
     }
 
-    private System.Collections.IEnumerator LoadAndAttachModel(string modelUrl, Transform parentTransform)
+    private System.Collections.IEnumerator LoadAndAttachModel(string modelUrl, Transform parentTransform, string filename)
     {
+        Debug.LogError(filename);
         // Download the asset bundle from URL
         using (UnityWebRequest webRequest = UnityWebRequestAssetBundle.GetAssetBundle(modelUrl))
         {
@@ -513,7 +524,6 @@ public class ARImageBehaviorManager : MonoBehaviour
                 case UnityWebRequest.Result.Success:
                     // Must replace this to the exact file name instead of getting the last part
                     // of the URL in case url doesn't supply the name
-                    var filename = modelUrl.Split('/').Last();
                     var bundle = DownloadHandlerAssetBundle.GetContent(webRequest);
 
                     // Load the asset in the asset bundle and instantiate it in the game world
@@ -582,7 +592,7 @@ public class ARImageBehaviorManager : MonoBehaviour
                     {
                         var url = $"file:///{Application.dataPath}/../AssetBundle/Android/ParentMerlionFab";
                         CurrentType = ARType.Model;
-                        StartCoroutine(LoadAndAttachModel(url, GetQRTransform()));
+                        StartCoroutine(LoadAndAttachModel(url, GetQRTransform(), "ParentMerlionFab"));
                     }));
                     break;
             }
@@ -622,7 +632,7 @@ public class ARImageBehaviorManager : MonoBehaviour
                 FetchAndDisplayQuiz(response, null);
                 break;
 
-            case "model":
+            case "3d":
                 FetchAndDisplayModel(response, qrTransform);
                 break;
 
