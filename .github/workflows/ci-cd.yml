@@ -1,41 +1,45 @@
-name: Build project
+name: Build Android (and IOS) APP
 
-on: push
+on:
+  push:
+    branches:
+      - main
 
 jobs:
-  buildForAllSupportedPlatforms:
-    name: Build for ${{ matrix.targetPlatform }}
-    runs-on: windows-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        targetPlatform:
-          - Android
-    steps:
-      - name: Checkout project
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          lfs: true
+  build-android:
+    runs-on: ubuntu-latest
 
-      - name: Cache Library
-        uses: actions/cache@v3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+          fetch-depth: 0
+
+      - name: Delete Assets/Videos folder before Unity build
+        run: |
+          echo "Removing Assets/Videos directory to prevent import errors"
+          rm -rf ./Assets/Videos
+
+      - uses: actions/cache@v3
         with:
           path: Library
-          key: Library-${{ matrix.targetPlatform }}
-          restore-keys: Library-
+          key: Library-Android
+          restore-keys: |
+            Library-
 
-      - name: Build project using Unity
+      - uses: jlumbroso/free-disk-space@v1.3.1
+
+      - name: Build Android APK
         uses: game-ci/unity-builder@v4
         env:
           UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
           UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
         with:
-          targetPlatform: ${{ matrix.targetPlatform }}
+          targetPlatform: Android
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Build-${{ matrix.targetPlatform }}
-          path: build/${{ matrix.targetPlatform }}
+          name: Build-Android
+          path: build/Android
