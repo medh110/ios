@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Networking;
 using Newtonsoft.Json;
+using System.IO;
 
 public class APIClient : MonoBehaviour
 {
@@ -443,8 +444,166 @@ public class APIClient : MonoBehaviour
     }
 
 
-    
-    [System.Serializable]
+
+    /// <summary>
+    /// Downloads a file (assumed to be an image) by its fileId, converts it into a Texture2D, and returns the texture via the callback.
+    /// </summary>
+    /// <param name="fileId">The unique file ID to download.</param>
+    /// <param name="onSuccess">Callback returning the Texture2D on success.</param>
+    /// <param name="onError">Callback returning an error message on failure.</param>
+    public void DownloadFileAsTexture(string fileId, Action<Texture2D> onSuccess, Action<string> onError)
+    {
+        StartCoroutine(DownloadFileAsTextureCoroutine(fileId, onSuccess, onError));
+    }
+
+    public IEnumerator DownloadFileAsTextureCoroutine(string fileId, Action<Texture2D> onSuccess, Action<string> onError)
+    {
+        // Build the URL using the fileId.
+        string url = $"{BASE_URL}/download_file?file_id={fileId}";
+
+        UnityWebRequest request = UnityWebRequest.Get(url);
+        request.SetRequestHeader("X-API-KEY", API_KEY);
+        request.timeout = 30; // Set a timeout if needed
+
+        Debug.Log($"Downloading file as texture from: {url}");
+        yield return request.SendWebRequest();
+
+        if (request.result == UnityWebRequest.Result.Success)
+        {
+            byte[] data = request.downloadHandler.data;
+            // Create a temporary texture
+            Texture2D texture = new Texture2D(1, 1);
+            bool loadSuccess = ImageConversion.LoadImage(texture, data, false);
+            if (loadSuccess)
+            {
+                Debug.Log("Image downloaded and converted successfully.");
+                onSuccess?.Invoke(texture);
+            }
+            else
+            {
+                Debug.LogError("Failed to convert downloaded data to Texture2D.");
+                onError?.Invoke("Failed to convert downloaded data to Texture2D.");
+            }
+        }
+        else
+        {
+            Debug.LogError($"Error downloading file: {request.error}");
+            onError?.Invoke(request.error);
+        }
+    }
+
+    /// <summary>
+    /// Downloads a file by its fileId from the download_file endpoint and caches it.
+    /// The file is saved in Application.persistentDataPath and the metadata is stored in a sidecar file.
+    /// </summary>
+    /// <param name="fileId">The file ID to download.</param>
+    /// <param name="metadata">The metadata string associated with the file.</param>
+    /// <param name="onSuccess">Callback that returns the cached file path and metadata.</param>
+    /// <param name="onError">Callback for errors.</param>
+    public void DownloadAndCacheFile(string fileId, string metadata, Action<string, string> onSuccess, Action<string> onError)
+    {
+        // Build the URL using the fileId.
+        string url = $"{BASE_URL}/download_file?file_id={fileId}";
+        // Use fileId as the file name. (Optionally, you might want to append an extension.)
+        string filePath = Path.Combine(Application.persistentDataPath, fileId);
+        // Metadata file path (a simple approach using a sidecar file)
+        string metadataPath = filePath + ".meta";
+
+        // Check if file is already cached.
+        if (File.Exists(filePath))
+        {
+            Debug.Log($"File {fileId} already cached at: {filePath}");
+            onSuccess?.Invoke(filePath, metadata);
+            return;
+        }
+
+        StartCoroutine(DownloadFileCoroutine(url, filePath, metadataPath, metadata, onSuccess, onError));
+    }
+
+
+    private IEnumerator DownloadFileCoroutine(string url, string filePath, string metadataPath, string metadata,
+        Action<string, string> onSuccess, Action<string> onError)
+    {
+        UnityWebRequest request = UnityWebRequest.Get(url);
+        request.SetRequestHeader("X-API-KEY", API_KEY);
+        // Download directly to a file.
+        request.downloadHandler = new DownloadHandlerFile(filePath);
+        request.timeout = 30; // Adjust timeout as needed
+
+        Debug.Log($"Downloading file from: {url}");
+
+        yield return request.SendWebRequest();
+
+        if (request.result == UnityWebRequest.Result.ConnectionError ||
+            request.result == UnityWebRequest.Result.ProtocolError)
+        {
+            Debug.LogError($"Download error: {request.error}");
+            onError?.Invoke(request.error);
+        }
+        else
+        {
+            // Save metadata to a separate file.
+            try
+            {
+                File.WriteAllText(metadataPath, metadata);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"Failed to cache metadata: {ex.Message}");
+                // Continue even if caching metadata fails.
+            }
+            Debug.Log($"File downloaded and cached at: {filePath}");
+            onSuccess?.Invoke(filePath, metadata);
+        }
+    }
+
+    public void DownloadFileCollectionFiles(FileCollectionResponse collectionResponse, Action<List<CachedFile>> onSuccess, Action<string> onError)
+    {
+        StartCoroutine(DownloadFileCollectionCoroutine(collectionResponse, onSuccess, onError));
+    }
+
+    private IEnumerator DownloadFileCollectionCoroutine(FileCollectionResponse collectionResponse, Action<List<CachedFile>> onSuccess, Action<string> onError)
+    {
+        List<CachedFile> cachedFiles = new List<CachedFile>();
+
+        foreach (var file in collectionResponse.files)
+        {
+            bool downloadComplete = false;
+            string cachedFilePath = null;
+            string fileMetadata = file.metadata; // Already provided in the response.
+            string errorMessage = null;
+
+            // Start downloading the file.
+            DownloadAndCacheFile(file.file_id, fileMetadata, (path, meta) =>
+            {
+                cachedFilePath = path;
+                downloadComplete = true;
+            }, (error) =>
+            {
+                errorMessage = error;
+                downloadComplete = true;
+            });
+
+            // Wait until the download callback is called.
+            while (!downloadComplete)
+            {
+                yield return null;
+            }
+
+            if (!string.IsNullOrEmpty(errorMessage))
+            {
+                onError?.Invoke($"Error downloading file {file.file_id}: {errorMessage}");
+                yield break;
+            }
+
+            cachedFiles.Add(new CachedFile { fileId = file.file_id, filePath = cachedFilePath, metadata = fileMetadata });
+        }
+
+        onSuccess?.Invoke(cachedFiles);
+    }
+
+
+[System.Serializable]
     public class QuizResponse
     {
         public int id { get; set; }
@@ -500,5 +659,10 @@ public class APIClient : MonoBehaviour
         public int created_at { get; set; }
         public int updated_at { get; set; }
     }
-    
+    public class CachedFile
+    {
+        public string fileId;
+        public string filePath;
+        public string metadata;
+    }
 }

@@ -59,3 +59,23 @@ MonoBehaviour:
     m_SpecifySize: 1
     m_Name: ParentAlienVideo
     m_Texture: {fileID: 2800000, guid: 09813cfbaeaeb4f42a3b403d86ad25e8, type: 3}
+  - m_SerializedGuid:
+      m_GuidLow: 5293051105359232221
+      m_GuidHigh: 8145861071757370279
+    m_SerializedTextureGuid:
+      m_GuidLow: 1780299448903488215
+      m_GuidHigh: 14725522213240365899
+    m_Size: {x: 0, y: 0}
+    m_SpecifySize: 0
+    m_Name: mdXNq1
+    m_Texture: {fileID: 0}
+  - m_SerializedGuid:
+      m_GuidLow: 5478135307775921621
+      m_GuidHigh: 11824637750091063723
+    m_SerializedTextureGuid:
+      m_GuidLow: 1757564720268295570
+      m_GuidHigh: 2080603147645889320
+    m_Size: {x: 0, y: 0}
+    m_SpecifySize: 0
+    m_Name: jSzOjv
+    m_Texture: {fileID: 0}

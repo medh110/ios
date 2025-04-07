@@ -190,7 +190,7 @@ public class ARImageBehaviorManager : MonoBehaviour
                     {
                         var url = $"file:///{Application.dataPath}/../AssetBundle/Android/ParentMerlionFab";
                         CurrentType = ARType.Model;
-                        StartCoroutine(LoadAndAttachModel(url, imageTransform));
+                        StartCoroutine(LoadAndAttachModel(url, imageTransform, "ParentMerlionFab"));
                     }));
                     break;
             }
@@ -222,7 +222,7 @@ public class ARImageBehaviorManager : MonoBehaviour
                             FetchAndDisplayQuiz(response, imageTransform);
                             break;
 
-                        case "model":
+                        case "3d":
                             FetchAndDisplayModel(response, imageTransform);
                             break;
 
@@ -285,7 +285,7 @@ public class ARImageBehaviorManager : MonoBehaviour
         else
         {
             Debug.LogWarning("Unknown video metadata. Defaulting to popup.");
-            InstantiateAndConfigurePopupVideo(response.short_url, imageTransform);
+            InstantiateAndConfigureOverlayVideo(response.short_url);
         }
     }
 
@@ -403,32 +403,19 @@ public class ARImageBehaviorManager : MonoBehaviour
         // Download the image need for quiz answer
         Debug.Log($"Fetching image for quiz: {quizData.image}");
         yield return null;
-        using (UnityWebRequest request = UnityWebRequest.Get(quizData.image))
-        {
-            yield return request.SendWebRequest();
-            switch (request.result)
-            {
-                case UnityWebRequest.Result.Success:
-                    // Convert the downloaded byte to texture 
-                    var data = request.downloadHandler.data;
-                    var tex = new Texture2D(1, 1);
-                    var isSuccess = ImageConversion.LoadImage(tex, data, false);
         
-                    if (isSuccess)
-                    {
-                        // If conversion succeeds set the texture to the container
-                        quizPrefab.SetIcon(tex);
-                    }
-                    else
-                    {
-                        quizPrefab.SetEmpty();
-                    }
-                    break;
-                default:
-                    Debug.LogError(request.error);
-                    break;
-            }
-        }
+        Debug.Log($"Downloading image from URL: {quizData.image}");
+        
+        yield return apiClient.DownloadFileAsTextureCoroutine(quizData.image, texture =>
+        {
+            // When download and conversion succeed, set the icon.
+            quizPrefab.SetIcon(texture);
+        }, error =>
+        {
+            Debug.LogError(error);
+            quizPrefab.SetEmpty();
+        });
+
 
         Debug.Log("Displaying quiz page...");
         // Disable HUD and show the quiz page
@@ -512,11 +499,22 @@ public class ARImageBehaviorManager : MonoBehaviour
     private void FetchAndDisplayModel(APIClient.ShortURLResponse response, Transform imageTransform)
     {
         CurrentType = ARType.Model;
-        StartCoroutine(LoadAndAttachModel(response.short_url, imageTransform));
+        var filename = response.short_url.Split('/').Last();
+        if (!isLocalTesting)
+        {
+            var metadata = JsonConvert.DeserializeObject<Dictionary<string, object>>(response.metadata);
+            if (metadata.ContainsKey("filename"))
+            {
+                filename = metadata["filename"].ToString();
+            }
+        }
+
+        StartCoroutine(LoadAndAttachModel(response.short_url, imageTransform, filename));
     }
 
-    private System.Collections.IEnumerator LoadAndAttachModel(string modelUrl, Transform parentTransform)
+    private System.Collections.IEnumerator LoadAndAttachModel(string modelUrl, Transform parentTransform, string filename)
     {
+        Debug.LogError(filename);
         // Download the asset bundle from URL
         using (UnityWebRequest webRequest = UnityWebRequestAssetBundle.GetAssetBundle(modelUrl))
         {
@@ -526,7 +524,6 @@ public class ARImageBehaviorManager : MonoBehaviour
                 case UnityWebRequest.Result.Success:
                     // Must replace this to the exact file name instead of getting the last part
                     // of the URL in case url doesn't supply the name
-                    var filename = modelUrl.Split('/').Last();
                     var bundle = DownloadHandlerAssetBundle.GetContent(webRequest);
 
                     // Load the asset in the asset bundle and instantiate it in the game world
@@ -595,7 +592,7 @@ public class ARImageBehaviorManager : MonoBehaviour
                     {
                         var url = $"file:///{Application.dataPath}/../AssetBundle/Android/ParentMerlionFab";
                         CurrentType = ARType.Model;
-                        StartCoroutine(LoadAndAttachModel(url, GetQRTransform()));
+                        StartCoroutine(LoadAndAttachModel(url, GetQRTransform(), "ParentMerlionFab"));
                     }));
                     break;
             }
@@ -603,6 +600,7 @@ public class ARImageBehaviorManager : MonoBehaviour
         else
         {
             isPendingResponse = true;
+            ToggleLoadingScreen(true);
             apiClient.GetObjectProperties(
                     shortcode,
                      response =>
@@ -634,7 +632,7 @@ public class ARImageBehaviorManager : MonoBehaviour
                 FetchAndDisplayQuiz(response, null);
                 break;
 
-            case "model":
+            case "3d":
                 FetchAndDisplayModel(response, qrTransform);
                 break;
 
