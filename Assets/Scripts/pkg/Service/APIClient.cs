@@ -494,6 +494,33 @@ public class APIClient : MonoBehaviour
         }
     }
 
+    public void DownloadAssetBundle(string fileId, Action<AssetBundle> onSuccess, Action<string> onError)
+    {
+        StartCoroutine(DownloadAssetBundleCoroutine(fileId, onSuccess, onError));
+    }
+
+    private IEnumerator DownloadAssetBundleCoroutine(string fileId, Action<AssetBundle> onSuccess, Action<string> onError)
+    {
+        string url = $"{BASE_URL}/download_file?file_id={fileId}";
+
+        using (UnityWebRequest webRequest = UnityWebRequestAssetBundle.GetAssetBundle(url))
+        {
+            webRequest.SetRequestHeader("X-API-KEY", API_KEY);
+            webRequest.timeout = 30; // Set a timeout if needed
+            yield return webRequest.SendWebRequest();
+            switch (webRequest.result)
+            {
+                case UnityWebRequest.Result.Success:
+                    var bundle = DownloadHandlerAssetBundle.GetContent(webRequest);
+                    onSuccess?.Invoke(bundle);
+                    break;
+                default:
+                    onError?.Invoke(webRequest.error);
+                    break;
+            }
+        }
+    }
+
     /// <summary>
     /// Downloads a file by its fileId from the download_file endpoint and caches it.
     /// The file is saved in Application.persistentDataPath and the metadata is stored in a sidecar file.
