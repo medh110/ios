@@ -401,13 +401,13 @@ public class ARImageBehaviorManager : MonoBehaviour
     private IEnumerator ReadQuizPage(APIClient.QuizResponse quizData)
     {
         // Download the image need for quiz answer
-        Debug.Log($"Fetching image for quiz: {quizData.image}");
+
         yield return null;
+        var isCompleted = false;
         
-        Debug.Log($"Downloading image from URL: {quizData.image}");
-        
-        yield return apiClient.DownloadFileAsTextureCoroutine(quizData.image, texture =>
+        apiClient.DownloadFileAsTexture(quizData.image, texture =>
         {
+            isCompleted = true;
             // When download and conversion succeed, set the icon.
             quizPrefab.SetIcon(texture);
         }, error =>
@@ -415,7 +415,8 @@ public class ARImageBehaviorManager : MonoBehaviour
             Debug.LogError(error);
             quizPrefab.SetEmpty();
         });
-
+        
+        yield return new WaitUntil(() => isCompleted);
 
         Debug.Log("Displaying quiz page...");
         // Disable HUD and show the quiz page
