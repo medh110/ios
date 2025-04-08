@@ -15,9 +15,16 @@ public class ARImageBehaviorManager : MonoBehaviour
     public ARTrackedImageManager trackedImageManager;
     public APIClient apiClient;
 
+    // Dictionary to keep track of active images
+    private Dictionary<TrackableId, ARTrackedImage> activeTrackedImages = new Dictionary<TrackableId, ARTrackedImage>();
+
+    // Optionally, track which images have already triggered behavior so you don’t do it repeatedly
+    private Dictionary<TrackableId, bool> processedImages = new Dictionary<TrackableId, bool>();
+
     [Header("Dynamic Prefabs")]
     public OverlayVideoPage overlayVideoPrefab; // Prefab for overlay videos
-    public GameObject popUpVideoPrefab;   // Prefab for pop-up videos    public GameObject videoPrefab;
+    public GameObject popUpVideoPrefab;         // Prefab for pop-up videos    
+    public GameObject videoPrefab;
     public QuizManager quizPrefab;
 
     [SerializeField]
@@ -26,11 +33,13 @@ public class ARImageBehaviorManager : MonoBehaviour
     private MainHud _hudCanvas;
     [SerializeField]
     private bool _touchToScan;
-    [SerializeField] 
+    [SerializeField]
     private bool _localTesting;
-    
+
+    // For legacy support: current tracked image and list (used in some methods)
     private ARTrackedImage currentTrackable;
     private TrackableId currentTrackableId;
+    private List<ARTrackedImage> trackedList = new List<ARTrackedImage>();
 
     private bool isOverlayActive = false;
     private bool isPendingResponse = false;
@@ -38,8 +47,6 @@ public class ARImageBehaviorManager : MonoBehaviour
     private APIClient.QuizResponse sampleQuiz;
     private string sampleClip;
     private bool isLocalTesting;
-
-    private List<ARTrackedImage> trackedList = new List<ARTrackedImage>();
 
     public GameObject CurrentMovableObject { get; private set; }
     public ARType CurrentType { get; private set; }
@@ -56,8 +63,7 @@ public class ARImageBehaviorManager : MonoBehaviour
         // Always set local testing to false, cached asset won't work anyway outside editor
         isLocalTesting = false;
 #endif
-        
-        // This is just a sample data
+        // This is just sample data
         sampleQuiz = new APIClient.QuizResponse();
         sampleQuiz.questions = "what is the national flower of singapore";
         sampleQuiz.answer_a = "Sunflower";
@@ -73,89 +79,131 @@ public class ARImageBehaviorManager : MonoBehaviour
 
         trackedImageManager.trackablesChanged.AddListener(OnTrackedImagesChanged);
     }
+
     void OnDisable()
     {
         trackedImageManager.trackablesChanged.RemoveListener(OnTrackedImagesChanged);
     }
 
+    /// <summary>
+    /// Processes changes to AR tracked images.
+    /// Maintains a dictionary of active tracked images so that multiple markers
+    /// can be processed concurrently.
+    /// </summary>
+    /// <param name="eventArgs">The AR trackable events</param>
     private void OnTrackedImagesChanged(ARTrackablesChangedEventArgs<ARTrackedImage> eventArgs)
     {
-        // If any overlay UI is active like quiz or video disable image tracking
+        // If any overlay UI or pending response is active, skip processing.
         if (isOverlayActive || isPendingResponse)
         {
             return;
         }
 
-        // If tracked list still contains current tracked item must return
-        if (eventArgs.updated.Contains(currentTrackable))
+        foreach (var removedPair in eventArgs.removed)
         {
-            return;
+            // Use removedPair.Key to get the TrackableId.
+            if (activeTrackedImages.ContainsKey(removedPair.Key))
+            {
+                activeTrackedImages.Remove(removedPair.Key);
+                processedImages.Remove(removedPair.Key); // Allow reprocessing if re-detected
+            }
         }
 
-        trackedList.Clear();
-        trackedList.AddRange(eventArgs.updated);
 
-        foreach (var trackedImage in eventArgs.updated)
+        // Process added images
+        foreach (var addedImage in eventArgs.added)
         {
-            // Don't process marker if tracking state is limited, means marker is not tracked anymore
-            if (trackedImage.trackingState == TrackingState.Limited)
+            if (!string.IsNullOrEmpty(addedImage.referenceImage.name))
             {
-                continue;
+                activeTrackedImages[addedImage.trackableId] = addedImage;
+                Debug.Log($"[Added] {addedImage.name} == {addedImage.referenceImage.name}, state: {addedImage.trackingState}");
             }
-            
-            Debug.LogError($"AAS:: TRACKING {trackedImage.name} == {trackedImage.referenceImage.name}");
-            
-            // We only check for new marker if old marker is not detected
-            if (trackedImage.trackableId != currentTrackableId)
+        }
+
+        // Process updated images
+        foreach (var updatedImage in eventArgs.updated)
+        {
+            if (!string.IsNullOrEmpty(updatedImage.referenceImage.name))
             {
-                // Must filter marker with empty it must always have a name
-                if (!string.IsNullOrEmpty(trackedImage.referenceImage.name))
+                activeTrackedImages[updatedImage.trackableId] = updatedImage;
+                Debug.Log($"[Updated] {updatedImage.name} == {updatedImage.referenceImage.name}, state: {updatedImage.trackingState}");
+            }
+        }
+
+        // Update legacy tracked list from active tracked images (used in some helper methods)
+        trackedList = activeTrackedImages.Values.ToList();
+
+        // Process each active tracked image.
+        foreach (var kv in activeTrackedImages)
+        {
+            ARTrackedImage trackedImage = kv.Value;
+            if (trackedImage.trackingState == TrackingState.Tracking)
+            {
+                Debug.Log($"Image {trackedImage.referenceImage.name} is Tracking.");
+                // If not already processed, trigger behavior (if auto scanning is enabled)
+                if (!processedImages.ContainsKey(trackedImage.trackableId))
                 {
-                    Debug.LogError($"AAS:: TRACKING PASS {trackedImage.name} == {trackedImage.referenceImage.name}");
+                    processedImages[trackedImage.trackableId] = true;
+                    // Update current trackable (for legacy support)
                     currentTrackable = trackedImage;
                     currentTrackableId = trackedImage.trackableId;
                     if (!_touchToScan)
                     {
                         FetchObjectAndExecuteBehavior(trackedImage.referenceImage.name, trackedImage.transform);
                     }
-                    break;
                 }
+            }
+            else if (trackedImage.trackingState == TrackingState.Limited)
+            {
+                Debug.Log($"Image {trackedImage.referenceImage.name} is Limited. Waiting for full tracking.");
+            }
+            else
+            {
+                Debug.Log($"Image {trackedImage.referenceImage.name} is in state: {trackedImage.trackingState}");
             }
         }
     }
 
+    /// <summary>
+    /// Tries to perform a scan by searching among the active tracked images.
+    /// </summary>
+    /// <returns>True if a fully tracked image is found and its behavior is executed; otherwise, false.</returns>
     public bool Scan()
     {
-        Debug.LogError($"AAS:: SCANNING");
-        // If any overlay UI is active like quiz or video disable image tracking
+        Debug.LogError("AAS:: SCANNING");
+
         if (isOverlayActive || isPendingResponse)
         {
             Debug.LogError($"AAS:: SCAN FAILED isOverlayActive: {isOverlayActive} == isPendingResponse: {isPendingResponse}");
             return false;
         }
 
-        if (currentTrackable == null)
+        // Loop over active tracked images to select a candidate.
+        ARTrackedImage candidate = null;
+        foreach (var kv in activeTrackedImages)
         {
-            Debug.LogError($"AAS:: SCAN FAILED Current Trackable is null");
+            // Use kv.Value to access the ARTrackedImage and its trackableId
+            if (kv.Value.trackingState == TrackingState.Tracking)
+            {
+                candidate = kv.Value;
+                break;
+            }
+        }
+
+        if (candidate == null)
+        {
+            Debug.LogError("AAS:: SCAN FAILED: No active tracked image is in Tracking state.");
             return false;
         }
 
-        // If cached marker is not on Tracking state means no marker is currently tracked
-        if (currentTrackable.trackingState != TrackingState.Tracking)
-        {
-            Debug.LogError($"AAS:: SCAN FAILED Tracking state not valid");
-            return false;
-        }
-        
-        Debug.LogError($"AAS:: Executing SCANNING behavior");
-        FetchObjectAndExecuteBehavior(currentTrackable.referenceImage.name, currentTrackable.transform);
+        Debug.LogError($"AAS:: Executing SCANNING behavior for {candidate.referenceImage.name}");
+        FetchObjectAndExecuteBehavior(candidate.referenceImage.name, candidate.transform);
         return true;
     }
 
     public IEnumerator ShowLoadingThenExecute(Action actionToExecute, float waitSeconds = 3f)
     {
-        // This is just a simulation of loading screen for local testing
-        // this is to simulate the wait time from backend for response
+        // Simulate a loading screen delay for local testing
         ToggleLoadingScreen(true);
         yield return new WaitForSeconds(waitSeconds);
         actionToExecute.Invoke();
@@ -167,7 +215,7 @@ public class ARImageBehaviorManager : MonoBehaviour
         if (isLocalTesting)
         {
             isPendingResponse = true;
-            // For local testing only using reference cached data
+            // For local testing using cached data
             switch (imageName)
             {
                 case "ParentAlienVideo":
@@ -184,7 +232,6 @@ public class ARImageBehaviorManager : MonoBehaviour
                         InstantiateAndConfigureOverlayVideo(sampleClip);
                     }));
                     break;
-
                 case "ParentSunPrefab":
                     StartCoroutine(ShowLoadingThenExecute(() =>
                     {
@@ -192,7 +239,6 @@ public class ARImageBehaviorManager : MonoBehaviour
                         InstantiateAndConfigurePopupVideo(sampleClip, imageTransform);
                     }));
                     break;
-
                 case "ParentMerlionFab":
                     StartCoroutine(ShowLoadingThenExecute(() =>
                     {
@@ -205,36 +251,29 @@ public class ARImageBehaviorManager : MonoBehaviour
         }
         else
         {
-            // Set Pending response to avoid sending another marker image while one is still pending
-            // Enable loading screen while waiting for response
+            // Mark pending to avoid multiple marker processes and show loading screen
             isPendingResponse = true;
             ToggleLoadingScreen(true);
 
-            // Fetch the object tied to the marker using the `original` field
+            // Fetch the object tied to the marker using imageName
             apiClient.GetObjectProperties(
                 imageName,
                 response =>
                 {
-                    // Set pending response to false when result is received
-                    // Disable Loading screen
                     Debug.Log($"Fetched object for {imageName}: Type={response.type}, Metadata={response.metadata}");
                     Debug.LogError($"AAS:: GetObjectProperties {imageName}: Type={response.type}, Metadata={response.metadata}");
 
-                    // Based on the type, call the appropriate content
                     switch (response.type)
                     {
                         case "video":
                             FetchAndDisplayVideo(response, imageTransform);
                             break;
-
                         case "quiz":
                             FetchAndDisplayQuiz(response, imageTransform);
                             break;
-
                         case "3d":
                             FetchAndDisplayModel(response, imageTransform);
                             break;
-
                         default:
                             Debug.LogWarning($"Unhandled type: {response.type}");
                             break;
@@ -242,11 +281,8 @@ public class ARImageBehaviorManager : MonoBehaviour
                 },
                 error =>
                 {
-                    // Set pending response to false when result is received
-                    // Disable Loading screen
                     isPendingResponse = false;
                     ToggleLoadingScreen(false);
-
                     Debug.LogError($"Failed to fetch object for {imageName}: {error}");
                 });
         }
@@ -254,24 +290,22 @@ public class ARImageBehaviorManager : MonoBehaviour
 
     private void ToggleHudCanvas(bool isEnable)
     {
-        // Toggle the hud canvas for overlay and preview mode
         _hudCanvas.ToggleHUD(isEnable);
     }
 
     private void ToggleLoadingScreen(bool isEnable)
     {
-        // This enable/disable loading screen
         _loadingScreen.SetActive(isEnable);
     }
 
     public void OnPreviewClosed()
     {
-        // Destroy the current spawned model / video 
+        // Destroy the current spawned model or video
         Destroy(CurrentMovableObject);
 
         if (CurrentType == ARType.Model)
         {
-            // We must unload the asset bundle upon closing the preview mode
+            // Unload asset bundles if model is closed
             AssetBundle.UnloadAllAssetBundles(true);
         }
         CurrentMarkerType = MarkerType.Invalid;
@@ -301,15 +335,12 @@ public class ARImageBehaviorManager : MonoBehaviour
 
     private void InstantiateAndConfigureOverlayVideo(string shortUrl)
     {
-        Debug.Log($"Preparing to play pop-up video from URL: {shortUrl}");
-        Debug.LogError($"AAS:: InstantiateAndConfigureOverlayVideo Preparing to play pop-up video from URL: {shortUrl}");
-        // Instantiate the pop-up video prefab
+        Debug.Log($"Preparing to play overlay video from URL: {shortUrl}");
+        Debug.LogError($"AAS:: InstantiateAndConfigureOverlayVideo Preparing to play overlay video from URL: {shortUrl}");
         if (overlayVideoPrefab.VideoPlayer != null)
         {
             StartCoroutine(PlayVideoWithAuth(shortUrl, overlayVideoPrefab.VideoPlayer, () =>
             {
-                // Must disable the HUD and set overlayActive to true to prevent 
-                // system from detecting another marker
                 ToggleHudCanvas(false);
                 isOverlayActive = true;
                 isPendingResponse = false;
@@ -317,9 +348,7 @@ public class ARImageBehaviorManager : MonoBehaviour
                 ToggleLoadingScreen(false);
                 overlayVideoPrefab.SetOnCloseAction(() =>
                 {
-                    // Enable HUD when close and set overlay to false to let the system know
-                    // we can scan for another marker
-                    CurrentMarkerType = MarkerType.Invalid; 
+                    CurrentMarkerType = MarkerType.Invalid;
                     CurrentType = ARType.Invalid;
                     isOverlayActive = false;
                     ToggleHudCanvas(true);
@@ -331,25 +360,20 @@ public class ARImageBehaviorManager : MonoBehaviour
     private void InstantiateAndConfigurePopupVideo(string videoUrl, Transform imageTransform)
     {
         Debug.Log($"Preparing to play pop-up video from URL: {videoUrl}");
-
-        // Instantiate the pop-up video prefab
         CurrentMovableObject = Instantiate(popUpVideoPrefab, imageTransform);
         if (CurrentMarkerType == MarkerType.Image)
         {
             CurrentMovableObject.transform.localScale = Vector2.one * currentTrackable.size;
         }
-        else if (CurrentMarkerType == MarkerType.QR) 
+        else if (CurrentMarkerType == MarkerType.QR)
         {
             CurrentMovableObject.transform.localScale = GetTrackableScale();
         }
-        var videoPlayer = CurrentMovableObject.GetComponentInChildren<UnityEngine.Video.VideoPlayer>();
-
+        var videoPlayer = CurrentMovableObject.GetComponentInChildren<VideoPlayer>();
         if (videoPlayer != null)
         {
             StartCoroutine(PlayVideoWithAuth(videoUrl, videoPlayer, () =>
             {
-                // Must disable the HUD and set overlayActive to true to prevent 
-                // system from detecting another marker and enable preview mode for controls
                 isOverlayActive = true;
                 _hudCanvas.TogglePreview(true);
                 isPendingResponse = false;
@@ -363,22 +387,16 @@ public class ARImageBehaviorManager : MonoBehaviour
         CurrentType = ARType.Quiz;
         try
         {
-            // Parse the metadata JSON to extract the quiz_id
-            Debug.Log($"Parsing metadata: {response.metadata}");    
-
+            Debug.Log($"Parsing metadata: {response.metadata}");
             var metadata = JsonConvert.DeserializeObject<Dictionary<string, object>>(response.metadata);
             if (metadata != null && metadata.ContainsKey("quiz_id"))
             {
                 string quizId = metadata["quiz_id"].ToString();
-                // Use FetchQuizFromAPI with the extracted quizId
-
                 Debug.Log($"Fetching quiz data from API using quiz_id: {quizId}");
                 apiClient.FetchQuizFromAPI(quizId,
                     quizResponse =>
                     {
-                        // Process the quiz response (e.g. start a coroutine to read the quiz page)
                         Debug.Log($"Fetched quiz data: {quizResponse}");
-
                         StartCoroutine(ReadQuizPage(quizResponse));
                     },
                     error =>
@@ -388,9 +406,7 @@ public class ARImageBehaviorManager : MonoBehaviour
             }
             else
             {
-
                 Debug.LogWarning("Metadata does not contain a valid quiz_id. Defaulting to direct API call.");
-                // Fallback to the original behavior using the short_url
                 apiClient.CallAPI(response.short_url, "GET", null,
                     content =>
                     {
@@ -411,67 +427,53 @@ public class ARImageBehaviorManager : MonoBehaviour
 
     private IEnumerator ReadQuizPage(APIClient.QuizResponse quizData)
     {
-        // Download the image need for quiz answer
-
         yield return null;
         var isCompleted = false;
-        
+
         apiClient.DownloadFileAsTexture(quizData.image, texture =>
         {
             isCompleted = true;
-            // When download and conversion succeed, set the icon.
             quizPrefab.SetIcon(texture);
         }, error =>
         {
             Debug.LogError(error);
             quizPrefab.SetEmpty();
         });
-        
-        yield return new WaitUntil(() => isCompleted);
 
+        yield return new WaitUntil(() => isCompleted);
         Debug.Log("Displaying quiz page...");
-        // Disable HUD and show the quiz page
         ToggleHudCanvas(false);
         quizPrefab.SetQuizData(quizData);
         quizPrefab.SetOnCloseAction(() =>
         {
-            // Set overlay to false and enable hud when quiz page is closed
             CurrentMarkerType = MarkerType.Invalid;
             CurrentType = ARType.Invalid;
             isOverlayActive = false;
             ToggleHudCanvas(true);
         });
 
-        // Set overlay to true to prevent system from scanning another marker
         isOverlayActive = true;
         isPendingResponse = false;
         ToggleLoadingScreen(false);
     }
 
-
-    private bool isPlaying = false; // Prevent multiple executions
-    private IEnumerator PlayVideoWithAuth(string videoUrl, UnityEngine.Video.VideoPlayer videoPlayer, Action executeOnReady = null)
+    private bool isPlaying = false;
+    private IEnumerator PlayVideoWithAuth(string videoUrl, VideoPlayer videoPlayer, Action executeOnReady = null)
     {
         if (isPlaying)
         {
             Debug.LogWarning("PlayVideoWithAuth is already running!");
-            yield break; // Exit if already running
+            yield break;
         }
         isPlaying = true;
         Debug.Log($"Fetching video with auth headers from: {videoUrl}");
-
-        // Create a UnityWebRequest with the required headers
         using (UnityWebRequest request = UnityWebRequest.Get(videoUrl))
         {
             if (!isLocalTesting)
             {
                 request.SetRequestHeader("X-API-KEY", "dfca5061-3576-47a9-872c-99d80b3c8218");
             }
-
-            // Begin the request
             yield return request.SendWebRequest();
-
-            // Handle errors
             if (request.result == UnityWebRequest.Result.ConnectionError || request.result == UnityWebRequest.Result.ProtocolError)
             {
                 Debug.LogError($"Failed to fetch video: {request.error}");
@@ -480,21 +482,15 @@ public class ARImageBehaviorManager : MonoBehaviour
                 ToggleLoadingScreen(false);
                 yield break;
             }
-
             Debug.Log("Video fetched successfully. Streaming to VideoPlayer...");
-
-            // Prepare the video player with the downloaded data
             videoPlayer.source = VideoSource.Url;
-            videoPlayer.url = videoUrl; // Use the URL only for metadata (not streaming)
+            videoPlayer.url = videoUrl;
             videoPlayer.Prepare();
             executeOnReady?.Invoke();
-
             videoPlayer.prepareCompleted += (source) =>
             {
                 videoPlayer.Play();
             };
-
-            // Error handling
             videoPlayer.errorReceived += (source, message) =>
             {
                 if (isOverlayActive)
@@ -506,8 +502,9 @@ public class ARImageBehaviorManager : MonoBehaviour
                 Debug.LogError($"VideoPlayer error: {message}");
             };
         }
-        isPlaying = false; // Reset the flag
+        isPlaying = false;
     }
+
     private void FetchAndDisplayModel(APIClient.ShortURLResponse response, Transform imageTransform)
     {
         CurrentType = ARType.Model;
@@ -522,48 +519,34 @@ public class ARImageBehaviorManager : MonoBehaviour
         }
 
         Debug.LogError($"AAS:: LoadAndAttachModel: {response.short_url}");
-
         StartCoroutine(LoadAndAttachModel(response.short_url, imageTransform, filename));
     }
 
-    private System.Collections.IEnumerator LoadAndAttachModel(string modelUrl, Transform parentTransform, string filename)
+    private IEnumerator LoadAndAttachModel(string modelUrl, Transform parentTransform, string filename)
     {
-        // Download the asset bundle from URL
         using (UnityWebRequest webRequest = UnityWebRequestAssetBundle.GetAssetBundle(modelUrl))
         {
             yield return webRequest.SendWebRequest();
             switch (webRequest.result)
             {
                 case UnityWebRequest.Result.Success:
-                    // Must replace this to the exact file name instead of getting the last part
-                    // of the URL in case url doesn't supply the name
                     var bundle = DownloadHandlerAssetBundle.GetContent(webRequest);
-                    Debug.LogError($"AAS:: GetAssetBundle SUCCESS");
-
-                    // Load the asset in the asset bundle and instantiate it in the game world
-                    // assign the instantiated gameobject in CurrentMovableObject for controls
+                    Debug.LogError("AAS:: GetAssetBundle SUCCESS");
                     GameObject prefab = bundle.LoadAsset<GameObject>(filename);
-
                     CurrentMovableObject = Instantiate(prefab, parentTransform.position, Quaternion.identity);
                     isOverlayActive = true;
                     _hudCanvas.TogglePreview(true);
-                    Debug.LogError($"AAS:: LoadAndAttachModel SUCCESS");
-
+                    Debug.LogError("AAS:: LoadAndAttachModel SUCCESS");
 #if UNITY_EDITOR
-                    // We only do this for editor, a certain issue exist that only happens in editor and this
-                    // is the fix
                     FixShaderForEditor.FixShadersForEditor(CurrentMovableObject);
 #endif
                     break;
                 default:
-                    Debug.LogError($"AAS:: GetAssetBundle FAILED");
+                    Debug.LogError("AAS:: GetAssetBundle FAILED");
                     isOverlayActive = false;
                     Debug.LogError(webRequest.error);
                     break;
             }
-
-            // Set overlay to true to prevent system from scanning markers
-            // and enable preview mode of HUD
             ToggleLoadingScreen(false);
             isPendingResponse = false;
         }
@@ -577,7 +560,6 @@ public class ARImageBehaviorManager : MonoBehaviour
         if (isLocalTesting)
         {
             isPendingResponse = true;
-            // For local testing only using reference cached data
             switch (shortcode)
             {
                 case "jSzOjv":
@@ -594,7 +576,6 @@ public class ARImageBehaviorManager : MonoBehaviour
                         InstantiateAndConfigureOverlayVideo(sampleClip);
                     }));
                     break;
-
                 case "1V2S2S":
                     StartCoroutine(ShowLoadingThenExecute(() =>
                     {
@@ -602,7 +583,6 @@ public class ARImageBehaviorManager : MonoBehaviour
                         InstantiateAndConfigurePopupVideo(sampleClip, GetQRTransform());
                     }));
                     break;
-
                 case "1FENoV":
                     StartCoroutine(ShowLoadingThenExecute(() =>
                     {
@@ -618,22 +598,19 @@ public class ARImageBehaviorManager : MonoBehaviour
             isPendingResponse = true;
             ToggleLoadingScreen(true);
             apiClient.GetObjectProperties(
-                    shortcode,
-                     response =>
-                     {
-                         Debug.Log($"Object fetched: Type={response.type}, Metadata={response.metadata}");
-                         // Pass the object to the behavior manager for execution
-                         ExecuteBehaviorFromObject(response);
-                     },
+                shortcode,
+                response =>
+                {
+                    Debug.Log($"Object fetched: Type={response.type}, Metadata={response.metadata}");
+                    ExecuteBehaviorFromObject(response);
+                },
                 error =>
                 {
                     Debug.LogError($"Failed to fetch object properties for short code {shortcode}: {error}");
                 });
         }
-
-
-
     }
+
     public void ExecuteBehaviorFromObject(APIClient.ShortURLResponse response)
     {
         Debug.Log($"Executing behavior for object: Type={response.type}, Metadata={response.metadata}");
@@ -643,15 +620,12 @@ public class ARImageBehaviorManager : MonoBehaviour
             case "video":
                 HandleVideo(response, qrTransform);
                 break;
-
             case "quiz":
                 FetchAndDisplayQuiz(response, null);
                 break;
-
             case "3d":
                 FetchAndDisplayModel(response, qrTransform);
                 break;
-
             default:
                 isPendingResponse = false;
                 _hudCanvas.ToggleHUD(true);
@@ -659,34 +633,34 @@ public class ARImageBehaviorManager : MonoBehaviour
                 break;
         }
     }
-    private void HandleVideo(APIClient.ShortURLResponse response, Transform imageTranform)
+
+    private void HandleVideo(APIClient.ShortURLResponse response, Transform imageTransform)
     {
         if (response.metadata.Contains("popup"))
         {
             CurrentType = ARType.PopupVideo;
-            InstantiateAndConfigurePopupVideo(response.short_url, imageTranform);
+            InstantiateAndConfigurePopupVideo(response.short_url, imageTransform);
         }
         else if (response.metadata.Contains("overlay"))
         {
             CurrentType = ARType.OverlayVideo;
-            InstantiateAndConfigureOverlayVideo(response.short_url); // No marker needed for QR code
+            InstantiateAndConfigureOverlayVideo(response.short_url);
         }
         else
         {
             Debug.LogWarning($"Unknown metadata for video: {response.metadata}. Defaulting to popup.");
-
             CurrentType = ARType.PopupVideo;
-            InstantiateAndConfigurePopupVideo(response.short_url, imageTranform);
+            InstantiateAndConfigurePopupVideo(response.short_url, imageTransform);
         }
     }
 
-    private Transform GetQRTransform() 
+    private Transform GetQRTransform()
     {
         Transform qrTransform = null;
         if (trackedList.Any())
         {
-            // Returns the first trackable image with null as reference image name, QR doesn't have reference image name 
-            var trackedImage = trackedList.First(item => item.trackingState == TrackingState.Tracking && string.IsNullOrEmpty(item.referenceImage.name));
+            // Returns the first trackable image with an empty reference image name (QR markers)
+            var trackedImage = trackedList.FirstOrDefault(item => item.trackingState == TrackingState.Tracking && string.IsNullOrEmpty(item.referenceImage.name));
             if (trackedImage != null)
             {
                 qrTransform = trackedImage.transform;
@@ -697,12 +671,10 @@ public class ARImageBehaviorManager : MonoBehaviour
 
     private Vector2 GetTrackableScale()
     {
-        // Returns the QR size 
         Vector2 scale = Vector2.one;
         if (trackedList.Any())
         {
-            // Returns the first trackable image with null as reference image name, QR doesn't have reference image name 
-            var trackedImage = trackedList.First(item => item.trackingState == TrackingState.Tracking && string.IsNullOrEmpty(item.referenceImage.name));
+            var trackedImage = trackedList.FirstOrDefault(item => item.trackingState == TrackingState.Tracking && string.IsNullOrEmpty(item.referenceImage.name));
             if (trackedImage != null)
             {
                 scale = trackedImage.size;
