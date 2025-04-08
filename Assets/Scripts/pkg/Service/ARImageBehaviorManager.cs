@@ -126,24 +126,28 @@ public class ARImageBehaviorManager : MonoBehaviour
 
     public bool Scan()
     {
+        Debug.LogError($"AAS:: SCANNING");
         // If any overlay UI is active like quiz or video disable image tracking
         if (isOverlayActive || isPendingResponse)
         {
+            Debug.LogError($"AAS:: SCAN FAILED isOverlayActive: {isOverlayActive} == isPendingResponse: {isPendingResponse}");
             return false;
         }
 
         if (currentTrackable == null)
         {
+            Debug.LogError($"AAS:: SCAN FAILED Current Trackable is null");
             return false;
         }
 
         // If cached marker is not on Tracking state means no marker is currently tracked
         if (currentTrackable.trackingState != TrackingState.Tracking)
         {
-
+            Debug.LogError($"AAS:: SCAN FAILED Tracking state not valid");
             return false;
         }
-
+        
+        Debug.LogError($"AAS:: Executing SCANNING behavior");
         FetchObjectAndExecuteBehavior(currentTrackable.referenceImage.name, currentTrackable.transform);
         return true;
     }
