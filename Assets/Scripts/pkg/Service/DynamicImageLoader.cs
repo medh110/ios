@@ -19,11 +19,9 @@ public class DynamicImageLoader : MonoBehaviour
     private string cacheFolder; // Path for cached images
     private List<Texture2D> cachedTextures = new List<Texture2D>(); // Loaded textures
 
+    private string ReferenceLibraryCollection = "3aa1ff23-3927-4b34-b095-797af9dedf29";
     private string CollectionKey = "de42a8b3-b355-48a6-8d97-eebac33031bc";
     private RuntimeReferenceImageLibrary RuntimeReferenceLibrary;
-    
-    //For testing only
-    private string assetBundleUrl = $"file:///{Application.dataPath}/../AssetBundle/Android/referenceimagelib";
 
     void Start()
     {
@@ -36,34 +34,41 @@ public class DynamicImageLoader : MonoBehaviour
 
         // Fetch images and update AR library
         // StartCoroutine(FetchAndLoadImagesCoroutine());
-        StartCoroutine(DownloadReferenceImageLibrary(assetBundleUrl));
+        StartCoroutine(DownloadReferenceImageLibrary());
     }
 
-    private IEnumerator DownloadReferenceImageLibrary(string referenceLibraryUrl)
+    private IEnumerator DownloadReferenceImageLibrary()
     {
-        using (UnityWebRequest webRequest = UnityWebRequestAssetBundle.GetAssetBundle(referenceLibraryUrl))
-        {
-            yield return webRequest.SendWebRequest();
-            switch (webRequest.result)
-            {
-                case UnityWebRequest.Result.Success:
-                    var bundle = DownloadHandlerAssetBundle.GetContent(webRequest);
+        bool isFetchComplete = false;
+        List<APIClient.FileData> libraryCollection = null;
 
-                    // Load the asset in the asset bundle and instantiate it in the game world
-                    // assign the instantiated gameobject in CurrentMovableObject for controls
-                    var libraries = bundle.LoadAllAssets<XRReferenceImageLibrary>();
-                    foreach (var keyname in bundle.GetAllAssetNames())
-                    {
-                        Debug.LogError(keyname);
-                    }
-                    
-                    XRReferenceImageLibrary referenceImageLibrary = libraries.First();
-                    RuntimeReferenceLibrary = trackedImageManager.CreateRuntimeLibrary(referenceImageLibrary);
-                    trackedImageManager.referenceLibrary = RuntimeReferenceLibrary;
-                    trackedImageManager.enabled = true;
-                    break;
-            }
-        }
+        // Fetch image URLs using the APIClient
+        apiClient.FetchFileCollection(ReferenceLibraryCollection,
+            collection =>
+            {
+                libraryCollection = collection.files;
+                isFetchComplete = true;
+            },
+            error =>
+            {
+                Debug.LogError($"Error fetching image URLs: {error}");
+                isFetchComplete = true;
+            });
+
+        // Wait until the fetch is complete
+        yield return new WaitUntil(() => isFetchComplete);
+
+        var libraryFileId = libraryCollection.First().file_id;
+        apiClient.DownloadAssetBundle(libraryFileId, bundle =>
+        {
+            // Load the asset in the asset bundle and instantiate it in the game world
+            // assign the instantiated gameobject in CurrentMovableObject for controls
+            var libraries = bundle.LoadAllAssets<XRReferenceImageLibrary>();
+            XRReferenceImageLibrary referenceImageLibrary = libraries.First();
+            RuntimeReferenceLibrary = trackedImageManager.CreateRuntimeLibrary(referenceImageLibrary);
+            trackedImageManager.referenceLibrary = RuntimeReferenceLibrary;
+            trackedImageManager.enabled = true;            
+        }, err => Debug.LogError(err));
     }
 
     private IEnumerator FetchAndLoadImagesCoroutine()
