@@ -102,12 +102,16 @@ public class ARImageBehaviorManager : MonoBehaviour
             {
                 continue;
             }
+            
+            Debug.LogError($"AAS:: TRACKING {trackedImage.name} == {trackedImage.referenceImage.name}");
+            
             // We only check for new marker if old marker is not detected
             if (trackedImage.trackableId != currentTrackableId)
             {
                 // Must filter marker with empty it must always have a name
                 if (!string.IsNullOrEmpty(trackedImage.referenceImage.name))
                 {
+                    Debug.LogError($"AAS:: TRACKING PASS {trackedImage.name} == {trackedImage.referenceImage.name}");
                     currentTrackable = trackedImage;
                     currentTrackableId = trackedImage.trackableId;
                     if (!_touchToScan)
@@ -210,6 +214,7 @@ public class ARImageBehaviorManager : MonoBehaviour
                     // Set pending response to false when result is received
                     // Disable Loading screen
                     Debug.Log($"Fetched object for {imageName}: Type={response.type}, Metadata={response.metadata}");
+                    Debug.LogError($"AAS:: GetObjectProperties {imageName}: Type={response.type}, Metadata={response.metadata}");
 
                     // Based on the type, call the appropriate content
                     switch (response.type)
@@ -284,6 +289,7 @@ public class ARImageBehaviorManager : MonoBehaviour
         }
         else
         {
+            CurrentType = ARType.OverlayVideo;
             Debug.LogWarning("Unknown video metadata. Defaulting to popup.");
             InstantiateAndConfigureOverlayVideo(response.short_url);
         }
@@ -292,6 +298,7 @@ public class ARImageBehaviorManager : MonoBehaviour
     private void InstantiateAndConfigureOverlayVideo(string shortUrl)
     {
         Debug.Log($"Preparing to play pop-up video from URL: {shortUrl}");
+        Debug.LogError($"AAS:: InstantiateAndConfigureOverlayVideo Preparing to play pop-up video from URL: {shortUrl}");
         // Instantiate the pop-up video prefab
         if (overlayVideoPrefab.VideoPlayer != null)
         {
@@ -510,12 +517,13 @@ public class ARImageBehaviorManager : MonoBehaviour
             }
         }
 
+        Debug.LogError($"AAS:: LoadAndAttachModel: {response.short_url}");
+
         StartCoroutine(LoadAndAttachModel(response.short_url, imageTransform, filename));
     }
 
     private System.Collections.IEnumerator LoadAndAttachModel(string modelUrl, Transform parentTransform, string filename)
     {
-        Debug.LogError(filename);
         // Download the asset bundle from URL
         using (UnityWebRequest webRequest = UnityWebRequestAssetBundle.GetAssetBundle(modelUrl))
         {
@@ -526,6 +534,7 @@ public class ARImageBehaviorManager : MonoBehaviour
                     // Must replace this to the exact file name instead of getting the last part
                     // of the URL in case url doesn't supply the name
                     var bundle = DownloadHandlerAssetBundle.GetContent(webRequest);
+                    Debug.LogError($"AAS:: GetAssetBundle SUCCESS");
 
                     // Load the asset in the asset bundle and instantiate it in the game world
                     // assign the instantiated gameobject in CurrentMovableObject for controls
@@ -534,6 +543,7 @@ public class ARImageBehaviorManager : MonoBehaviour
                     CurrentMovableObject = Instantiate(prefab, parentTransform.position, Quaternion.identity);
                     isOverlayActive = true;
                     _hudCanvas.TogglePreview(true);
+                    Debug.LogError($"AAS:: LoadAndAttachModel SUCCESS");
 
 #if UNITY_EDITOR
                     // We only do this for editor, a certain issue exist that only happens in editor and this
@@ -542,6 +552,7 @@ public class ARImageBehaviorManager : MonoBehaviour
 #endif
                     break;
                 default:
+                    Debug.LogError($"AAS:: GetAssetBundle FAILED");
                     isOverlayActive = false;
                     Debug.LogError(webRequest.error);
                     break;
