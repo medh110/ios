@@ -1,10 +1,11 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
-using Unity.Collections;
 using UnityEngine;
+using UnityEngine.Networking;
 using UnityEngine.XR.ARFoundation;
 using UnityEngine.XR.ARSubsystems;
 
@@ -13,11 +14,16 @@ public class DynamicImageLoader : MonoBehaviour
     [Header("Dependencies")]
     public APIClient apiClient; // Reference to APIClient
     public ARTrackedImageManager trackedImageManager; // Reference to ARTrackedImageManager
-
-
-
+    public XRReferenceImageLibrary  referenceLibrary;
+    
     private string cacheFolder; // Path for cached images
     private List<Texture2D> cachedTextures = new List<Texture2D>(); // Loaded textures
+
+    private string CollectionKey = "de42a8b3-b355-48a6-8d97-eebac33031bc";
+    private RuntimeReferenceImageLibrary RuntimeReferenceLibrary;
+    
+    //For testing only
+    private string assetBundleUrl = $"file:///{Application.dataPath}/../AssetBundle/Android/referenceimagelib";
 
     void Start()
     {
@@ -29,19 +35,47 @@ public class DynamicImageLoader : MonoBehaviour
         }
 
         // Fetch images and update AR library
-        StartCoroutine(FetchAndLoadImagesCoroutine());
+        // StartCoroutine(FetchAndLoadImagesCoroutine());
+        StartCoroutine(DownloadReferenceImageLibrary(assetBundleUrl));
+    }
+
+    private IEnumerator DownloadReferenceImageLibrary(string referenceLibraryUrl)
+    {
+        using (UnityWebRequest webRequest = UnityWebRequestAssetBundle.GetAssetBundle(referenceLibraryUrl))
+        {
+            yield return webRequest.SendWebRequest();
+            switch (webRequest.result)
+            {
+                case UnityWebRequest.Result.Success:
+                    var bundle = DownloadHandlerAssetBundle.GetContent(webRequest);
+
+                    // Load the asset in the asset bundle and instantiate it in the game world
+                    // assign the instantiated gameobject in CurrentMovableObject for controls
+                    var libraries = bundle.LoadAllAssets<XRReferenceImageLibrary>();
+                    foreach (var keyname in bundle.GetAllAssetNames())
+                    {
+                        Debug.LogError(keyname);
+                    }
+                    
+                    XRReferenceImageLibrary referenceImageLibrary = libraries.First();
+                    RuntimeReferenceLibrary = trackedImageManager.CreateRuntimeLibrary(referenceImageLibrary);
+                    trackedImageManager.referenceLibrary = RuntimeReferenceLibrary;
+                    trackedImageManager.enabled = true;
+                    break;
+            }
+        }
     }
 
     private IEnumerator FetchAndLoadImagesCoroutine()
     {
         bool isFetchComplete = false;
-        List<string> imageUrls = null;
+        List<APIClient.FileData> imageUrls = null;
 
         // Fetch image URLs using the APIClient
-        apiClient.FetchImageUrls(
-            urls =>
+        apiClient.FetchFileCollection(CollectionKey,
+            collection =>
             {
-                imageUrls = urls;
+                imageUrls = collection.files;
                 isFetchComplete = true;
             },
             error =>
@@ -62,7 +96,7 @@ public class DynamicImageLoader : MonoBehaviour
         // Process each image URL
         foreach (var url in imageUrls)
         {
-            string fileName = Path.GetFileName(url);
+            string fileName = $"{url.file_id}.jpg";
             string filePath = Path.Combine(cacheFolder, fileName);
 
             Texture2D texture;
@@ -72,30 +106,41 @@ public class DynamicImageLoader : MonoBehaviour
                 // Load cached image
                 byte[] imageBytes = File.ReadAllBytes(filePath);
                 texture = new Texture2D(2, 2);
-                texture.LoadImage(imageBytes);
+                texture.LoadImage(imageBytes, false);
+                texture.Apply();
             }
             else
             {
-                // Download and cache the image asynchronously
-                Task<Texture2D> downloadTask = DownloadImageAsync(url, filePath);
-                yield return new WaitUntil(() => downloadTask.IsCompleted);
-
-                if (downloadTask.Exception != null)
+                var downloadComplete = false;
+                var downloadFailed = false;
+                Texture2D textureLoad = null;
+                //Download and cache the image asynchronously
+                apiClient.DownloadFileAsTexture(url.file_id, tex =>
                 {
-                    Debug.LogError($"Error downloading image from {url}: {downloadTask.Exception}");
+                    Debug.LogError(url.file_id);
+                    textureLoad = tex;
+                    downloadComplete = true;
+                }, err =>
+                {
+                    Debug.LogError(err);
+                    downloadFailed = true;
+                });
+                
+                yield return new WaitUntil(() => downloadComplete || downloadFailed);
+
+                if (downloadFailed)
+                {
                     continue;
                 }
 
-                texture = downloadTask.Result;
+                texture = textureLoad;
             }
-
             cachedTextures.Add(texture);
-
             yield return null; // Allow Unity to render frames
         }
 
         // Add images to the AR library
-        UpdateReferenceLibrary();
+        StartCoroutine(UpdateReferenceLibrary());
     }
 
     private async Task<Texture2D> DownloadImageAsync(string url, string filePath)
@@ -111,22 +156,30 @@ public class DynamicImageLoader : MonoBehaviour
         }
     }
 
-    private void UpdateReferenceLibrary()
+    private IEnumerator UpdateReferenceLibrary()
     {
-        if (!(trackedImageManager.referenceLibrary is MutableRuntimeReferenceImageLibrary mutableLibrary))
+        RuntimeReferenceLibrary = trackedImageManager.CreateRuntimeLibrary(referenceLibrary);
+        if (!(RuntimeReferenceLibrary is MutableRuntimeReferenceImageLibrary mutableLibrary))
         {
             Debug.LogError("The reference library is not mutable. Ensure AR Foundation 4.0+ is installed.");
-            return;
+            yield break;
         }
 
+        var jobHandles = new List<AddReferenceImageJobState>();
         foreach (var texture in cachedTextures)
         {
             string imageName = "DynamicImage_" + cachedTextures.IndexOf(texture);
-
             // Add image to the library
-            var jobHandle = mutableLibrary.ScheduleAddImageJob(texture, imageName, 0.1f); // Adjust physical size (meters)
+            var imageJobState = mutableLibrary.ScheduleAddImageWithValidationJob(texture, imageName, 0.5f);
+            var jobHandle = imageJobState.jobHandle;
             jobHandle.Complete();
+            jobHandles.Add(imageJobState);
         }
+
+        yield return new WaitUntil(() => jobHandles.All(_ => _.jobHandle.IsCompleted));
+        
+        trackedImageManager.referenceLibrary = mutableLibrary;
+        trackedImageManager.enabled = true;
 
         Debug.Log("Dynamically loaded images added to the AR library.");
     }
