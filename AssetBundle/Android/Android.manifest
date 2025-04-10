@@ -1,6 +1,6 @@
 ManifestFileVersion: 0
 UnityVersion: 6000.0.28f1
-CRC: 3019487796
+CRC: 2969423201
 HashAppended: 0
 AssetBundleManifest:
   AssetBundleInfos:
@@ -12,4 +12,43 @@ AssetBundleManifest:
       Dependencies: {}
     Info_2:
       Name: liondance
+      Dependencies: {}
+    Info_3:
+      Name: referenceimagelib
+      Dependencies: {}
+    Info_4:
+      Name: helixbridge
+      Dependencies: {}
+    Info_5:
+      Name: joochiat
+      Dependencies: {}
+    Info_6:
+      Name: laupasat
+      Dependencies: {}
+    Info_7:
+      Name: mandarinorange
+      Dependencies: {}
+    Info_8:
+      Name: marinabay
+      Dependencies: {}
+    Info_9:
+      Name: merlion
+      Dependencies: {}
+    Info_10:
+      Name: ionorchard
+      Dependencies: {}
+    Info_11:
+      Name: seaturtle
+      Dependencies: {}
+    Info_12:
+      Name: sentosa
+      Dependencies: {}
+    Info_13:
+      Name: boatquay
+      Dependencies: {}
+    Info_14:
+      Name: skatergirl
+      Dependencies: {}
+    Info_15:
+      Name: sungei
       Dependencies: {}

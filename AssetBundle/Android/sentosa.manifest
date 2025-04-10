@@ -1,0 +1,37 @@
+ManifestFileVersion: 0
+UnityVersion: 6000.0.28f1
+CRC: 2519797103
+Hashes:
+  AssetFileHash:
+    serializedVersion: 2
+    Hash: a20b55ac313fb316b4f4ad350b901ecc
+  TypeTreeHash:
+    serializedVersion: 2
+    Hash: 83a4f80a9849befbea20413566db4b7e
+  IncrementalBuildHash:
+    serializedVersion: 2
+    Hash: d5c98d36f59bb172c1551b5d6e7e4ecc
+HashAppended: 0
+ClassTypes:
+- Class: 1
+  Script: {instanceID: 0}
+- Class: 4
+  Script: {instanceID: 0}
+- Class: 21
+  Script: {instanceID: 0}
+- Class: 23
+  Script: {instanceID: 0}
+- Class: 28
+  Script: {instanceID: 0}
+- Class: 33
+  Script: {instanceID: 0}
+- Class: 43
+  Script: {instanceID: 0}
+- Class: 48
+  Script: {instanceID: 0}
+- Class: 65
+  Script: {instanceID: 0}
+SerializeReferenceClassIdentifiers: []
+Assets:
+- Assets/Assetbundle/Sentosa.prefab
+Dependencies: []

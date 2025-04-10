@@ -456,7 +456,7 @@ public class APIClient : MonoBehaviour
         StartCoroutine(DownloadFileAsTextureCoroutine(fileId, onSuccess, onError));
     }
 
-    public IEnumerator DownloadFileAsTextureCoroutine(string fileId, Action<Texture2D> onSuccess, Action<string> onError)
+    private IEnumerator DownloadFileAsTextureCoroutine(string fileId, Action<Texture2D> onSuccess, Action<string> onError)
     {
         // Build the URL using the fileId.
         string url = $"{BASE_URL}/download_file?file_id={fileId}";
@@ -472,8 +472,10 @@ public class APIClient : MonoBehaviour
         {
             byte[] data = request.downloadHandler.data;
             // Create a temporary texture
-            Texture2D texture = new Texture2D(1, 1);
+            Texture2D texture = new Texture2D(2, 2);
             bool loadSuccess = ImageConversion.LoadImage(texture, data, false);
+            texture.hideFlags = HideFlags.NotEditable;
+            texture.ignoreMipmapLimit = false;
             if (loadSuccess)
             {
                 Debug.Log("Image downloaded and converted successfully.");
@@ -489,6 +491,33 @@ public class APIClient : MonoBehaviour
         {
             Debug.LogError($"Error downloading file: {request.error}");
             onError?.Invoke(request.error);
+        }
+    }
+
+    public void DownloadAssetBundle(string fileId, Action<AssetBundle> onSuccess, Action<string> onError)
+    {
+        StartCoroutine(DownloadAssetBundleCoroutine(fileId, onSuccess, onError));
+    }
+
+    private IEnumerator DownloadAssetBundleCoroutine(string fileId, Action<AssetBundle> onSuccess, Action<string> onError)
+    {
+        string url = $"{BASE_URL}/download_file?file_id={fileId}";
+
+        using (UnityWebRequest webRequest = UnityWebRequestAssetBundle.GetAssetBundle(url))
+        {
+            webRequest.SetRequestHeader("X-API-KEY", API_KEY);
+            webRequest.timeout = 30; // Set a timeout if needed
+            yield return webRequest.SendWebRequest();
+            switch (webRequest.result)
+            {
+                case UnityWebRequest.Result.Success:
+                    var bundle = DownloadHandlerAssetBundle.GetContent(webRequest);
+                    onSuccess?.Invoke(bundle);
+                    break;
+                default:
+                    onError?.Invoke(webRequest.error);
+                    break;
+            }
         }
     }
 

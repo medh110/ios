@@ -1,0 +1,39 @@
+ManifestFileVersion: 0
+UnityVersion: 6000.0.28f1
+CRC: 4049643133
+Hashes:
+  AssetFileHash:
+    serializedVersion: 2
+    Hash: 93c8a7cab99627edf85b2f654b366743
+  TypeTreeHash:
+    serializedVersion: 2
+    Hash: 2d2fe8a0540044fdd8f99f20b4e89615
+  IncrementalBuildHash:
+    serializedVersion: 2
+    Hash: 1428b977320d4a65221b23851ed26e73
+HashAppended: 0
+ClassTypes:
+- Class: 1
+  Script: {instanceID: 0}
+- Class: 4
+  Script: {instanceID: 0}
+- Class: 21
+  Script: {instanceID: 0}
+- Class: 23
+  Script: {instanceID: 0}
+- Class: 28
+  Script: {instanceID: 0}
+- Class: 33
+  Script: {instanceID: 0}
+- Class: 43
+  Script: {instanceID: 0}
+- Class: 48
+  Script: {instanceID: 0}
+- Class: 65
+  Script: {instanceID: 0}
+- Class: 137
+  Script: {instanceID: 0}
+SerializeReferenceClassIdentifiers: []
+Assets:
+- Assets/Assetbundle/Sungei.prefab
+Dependencies: []

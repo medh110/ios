@@ -1,0 +1,31 @@
+ManifestFileVersion: 0
+UnityVersion: 6000.0.28f1
+CRC: 3929989351
+Hashes:
+  AssetFileHash:
+    serializedVersion: 2
+    Hash: 4126a17107f129443655f8ff67f5a8e6
+  TypeTreeHash:
+    serializedVersion: 2
+    Hash: cec67c941879dc26e5a56a79604108e1
+  IncrementalBuildHash:
+    serializedVersion: 2
+    Hash: 0aeae9cb1817e6a418495e4c55fbc9a9
+HashAppended: 0
+ClassTypes:
+- Class: 114
+  Script: {fileID: 11500000, guid: 848409ee8ba454f42a5ddff137688a27, type: 3}
+- Class: 115
+  Script: {instanceID: 0}
+SerializeReferenceClassIdentifiers:
+- AssemblyName: Unity.XR.ARSubsystems
+  ClassName: UnityEngine.XR.ARSubsystems.SerializableDictionary`2
+- AssemblyName: Unity.XR.ARSubsystems
+  ClassName: UnityEngine.XR.ARSubsystems.SerializableDictionary`2/KeyValuePair
+- AssemblyName: Unity.XR.ARSubsystems
+  ClassName: UnityEngine.XR.ARSubsystems.SerializableGuid
+- AssemblyName: Unity.XR.ARSubsystems
+  ClassName: UnityEngine.XR.ARSubsystems.XRReferenceImage
+Assets:
+- Assets/ReferenceLibrary/ReferenceImageLibrary.asset
+Dependencies: []
