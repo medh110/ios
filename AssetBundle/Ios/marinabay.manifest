@@ -1,0 +1,35 @@
+ManifestFileVersion: 0
+UnityVersion: 6000.0.28f1
+CRC: 457768139
+Hashes:
+  AssetFileHash:
+    serializedVersion: 2
+    Hash: fb6bfde8c5ead1f71e9becb5167360ff
+  TypeTreeHash:
+    serializedVersion: 2
+    Hash: 02891d9e88e5268131f274408ebabf71
+  IncrementalBuildHash:
+    serializedVersion: 2
+    Hash: a6196b7f085f1ee424a4cc08af3a5425
+HashAppended: 0
+ClassTypes:
+- Class: 1
+  Script: {instanceID: 0}
+- Class: 4
+  Script: {instanceID: 0}
+- Class: 21
+  Script: {instanceID: 0}
+- Class: 23
+  Script: {instanceID: 0}
+- Class: 33
+  Script: {instanceID: 0}
+- Class: 43
+  Script: {instanceID: 0}
+- Class: 48
+  Script: {instanceID: 0}
+- Class: 65
+  Script: {instanceID: 0}
+SerializeReferenceClassIdentifiers: []
+Assets:
+- Assets/Assetbundle/MarinaBay.prefab
+Dependencies: []

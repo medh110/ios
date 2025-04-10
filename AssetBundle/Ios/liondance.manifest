@@ -1,0 +1,41 @@
+ManifestFileVersion: 0
+UnityVersion: 6000.0.28f1
+CRC: 639801499
+Hashes:
+  AssetFileHash:
+    serializedVersion: 2
+    Hash: a3ff8b82514d4982160c0fe20c078c55
+  TypeTreeHash:
+    serializedVersion: 2
+    Hash: 8e1cc38df28f53816777e54fa0f63571
+  IncrementalBuildHash:
+    serializedVersion: 2
+    Hash: 8d7c7b1f6b34a9cb4ef31a437393b521
+HashAppended: 0
+ClassTypes:
+- Class: 1
+  Script: {instanceID: 0}
+- Class: 4
+  Script: {instanceID: 0}
+- Class: 21
+  Script: {instanceID: 0}
+- Class: 28
+  Script: {instanceID: 0}
+- Class: 43
+  Script: {instanceID: 0}
+- Class: 48
+  Script: {instanceID: 0}
+- Class: 65
+  Script: {instanceID: 0}
+- Class: 74
+  Script: {instanceID: 0}
+- Class: 91
+  Script: {instanceID: 0}
+- Class: 95
+  Script: {instanceID: 0}
+- Class: 137
+  Script: {instanceID: 0}
+SerializeReferenceClassIdentifiers: []
+Assets:
+- Assets/Assetbundle/LionDance.prefab
+Dependencies: []
