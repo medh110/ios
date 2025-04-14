@@ -1,0 +1,80 @@
+name: Build IOS APP
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'Assets/**'
+      - 'Packages/**'
+      - 'ProjectSettings/**'
+
+jobs:
+  build-ios:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+          fetch-depth: 0
+
+      - name: Git LFS Pull
+        run: |
+          git lfs pull
+          git reset --hard
+
+      - name: Cache Library
+        uses: actions/cache@v4
+        with:
+          path: Library
+          key: Library-iOS-${{ hashFiles('Assets/**', 'Packages/**', 'ProjectSettings/**') }}
+
+      - name: Build iOS
+        uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          targetPlatform: iOS
+
+      - name: Set up Ruby for Fastlane
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: 3.1
+
+      - name: Install Fastlane
+        run: gem install fastlane
+
+      - name: Generate Fastfile
+        run: |
+          mkdir -p build/iOS/fastlane
+          cat <<EOF > build/iOS/fastlane/Fastfile
+          default_platform(:ios)
+
+          platform :ios do
+            desc "Build IPA from Unity-iPhone Xcode project"
+            lane :build_ipa do
+              build_app(
+                project: "Unity-iPhone.xcodeproj",
+                scheme: "Unity-iPhone",
+                export_method: "ad-hoc", # or app-store / development
+                output_directory: "./output",
+                output_name: "UnityApp.ipa",
+                clean: true
+              )
+            end
+          end
+          EOF
+
+      - name: Build IPA with Fastlane
+        run: |
+          cd build/iOS
+          fastlane build_ipa
+
+      - name: Upload IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: iOS-IPA
+          path: build/iOS/output/UnityApp.ipa
