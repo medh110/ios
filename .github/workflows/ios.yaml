@@ -8,6 +8,7 @@ on:
       - 'Assets/**'
       - 'Packages/**'
       - 'ProjectSettings/**'
+      - '.github/**'
 
 jobs:
   build-ios:
@@ -30,7 +31,7 @@ jobs:
           path: Library
           key: Library-iOS-${{ hashFiles('Assets/**', 'Packages/**', 'ProjectSettings/**') }}
 
-      - name: Build iOS
+      - name: Build iOS with Unity
         uses: game-ci/unity-builder@v4
         env:
           UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
@@ -47,34 +48,103 @@ jobs:
       - name: Install Fastlane
         run: gem install fastlane
 
+      # - name: List build directory
+      #   run: |
+      #     ls -la
+      #     ls -la build/ || echo "No build directory"
+      #     find . -name "Unity-iPhone.xcodeproj" -type d
+
       - name: Generate Fastfile
         run: |
-          mkdir -p build/iOS/fastlane
-          cat <<EOF > build/iOS/fastlane/Fastfile
-          default_platform(:ios)
-
+          mkdir -p ios-fastlane/fastlane
+          echo 'default_platform(:ios)
+          
           platform :ios do
             desc "Build IPA from Unity-iPhone Xcode project"
             lane :build_ipa do
+              # First update build settings for Swift
+              update_build_settings(
+                xcodeproj: "../build/iOS/iOS/Unity-iPhone.xcodeproj",
+                use_swift_standard_libraries: "YES",
+                swift_version: "5.0"
+              )
+          
+              # Then build the app with the updated settings
               build_app(
-                project: "Unity-iPhone.xcodeproj",
+                project: "../build/iOS/iOS/Unity-iPhone.xcodeproj",
                 scheme: "Unity-iPhone",
-                export_method: "ad-hoc", # or app-store / development
+                export_method: "ad-hoc",
+                export_options: {
+                  method: "ad-hoc",
+                  provisioningProfiles: { 
+                    "com.epyphite.aas-companion-app" => "AAS-Distribution-profile"
+                  },
+                  signingStyle: "manual",
+                  signingCertificate: "iPhone Distribution",
+                  teamID: ENV["APPLE_TEAM_ID"]
+                },
+                buildlog_path: "./build_logs",
+                xcargs: "SWIFT_VERSION=5.0 OTHER_LDFLAGS=\\"$(inherited) -Xlinker -ld_classic\\"",
                 output_directory: "./output",
                 output_name: "UnityApp.ipa",
                 clean: true
               )
             end
-          end
-          EOF
+          end' > ios-fastlane/fastlane/Fastfile
+
+      - name: Unlock Keychain
+        run: security unlock-keychain -p "${{ secrets.KEYCHAIN_PASSWORD }}" "$HOME/Library/Keychains/login.keychain-db"
+
+      - name: Decode and install certificate
+        run: |
+          echo "$IOS_P12_CERTIFICATE" | base64 --decode > certificate.p12
+          security import certificate.p12 -k "$HOME/Library/Keychains/login.keychain-db" -P "$IOS_P12_PASSWORD" -T /usr/bin/codesign
+        env:
+          IOS_P12_CERTIFICATE: ${{ secrets.IOS_P12_CERTIFICATE }}
+          IOS_P12_PASSWORD: ${{ secrets.IOS_P12_PASSWORD }}
+
+      - name: Decode and install provisioning profile
+        run: |
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          echo "$IOS_PROVISIONING_PROFILE" | base64 --decode > ~/Library/MobileDevice/Provisioning\ Profiles/profile.mobileprovision
+          # Get the UUID of the provisioning profile
+          PROVISIONING_PROFILE_UUID=$(grep -a -A 1 "UUID" ~/Library/MobileDevice/Provisioning\ Profiles/profile.mobileprovision | grep -o -E "[a-fA-F0-9-]{36}")
+          echo "Provisioning profile UUID: $PROVISIONING_PROFILE_UUID"
+          # Rename the profile using the UUID
+          mv ~/Library/MobileDevice/Provisioning\ Profiles/profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/$PROVISIONING_PROFILE_UUID.mobileprovision
+        env:
+          IOS_PROVISIONING_PROFILE: ${{ secrets.IOS_PROVISIONING_PROFILE }}
+
+      - name: Update Xcode project code signing settings
+        run: |
+          cd build/iOS/iOS
+          /usr/libexec/PlistBuddy -c "Add :BuildProperties:ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES string YES" ./Info.plist
+          fastlane run update_code_signing_settings use_automatic_signing:false team_id:"$APPLE_TEAM_ID" code_sign_identity:"iPhone Distribution" bundle_identifier:"com.epyphite.aas-companion-app" profile_name:"AAS-Distribution-profile" path:"Unity-iPhone.xcodeproj" targets:"Unity-iPhone"
+          fastlane run update_project_team team_id:"$APPLE_TEAM_ID" targets:"Unity-iPhone,UnityFramework"
+          fastlane run update_build_settings xcodeproj:"Unity-iPhone.xcodeproj" use_swift_standard_libraries:"YES" swift_version:"5.0"
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+      - name: Configure legacy build system
+        run: |
+          cd build/iOS/iOS
+          # Use legacy build system and ld_classic for linking
+          defaults write com.apple.dt.XcodeBuild EnableSwiftBuildSystemIntegration -bool NO
+          echo "OTHER_LDFLAGS = \$(inherited) -Xlinker -ld_classic" >> Unity-iPhone.xcodeproj/project.pbxproj
+
+      - name: Set keychain timeout
+        run: |
+          security set-keychain-settings -t 3600 -l "$HOME/Library/Keychains/login.keychain-db"
 
       - name: Build IPA with Fastlane
         run: |
-          cd build/iOS
-          fastlane build_ipa
+          cd ios-fastlane
+          fastlane ios build_ipa
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
           name: iOS-IPA
-          path: build/iOS/output/UnityApp.ipa
+          path: ios-fastlane/output/UnityApp.ipa
