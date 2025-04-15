@@ -58,11 +58,17 @@ jobs:
     # BUILD IPA WITH XCODEBUILD
     # ----------------------------
 
-    - name: List build directory
+    # - name: List build directory
+    #   run: |
+    #     ls -la
+    #     ls -la build/ || echo "No build directory"
+    #     find . -name "Unity-iPhone.xcodeproj" -type d
+        
+    - name: Update UnityFramework signing settings
       run: |
-        ls -la
-        ls -la build/ || echo "No build directory"
-        find . -name "Unity-iPhone.xcodeproj" -type d
+        cd build/iOS/iOS
+        # Set UnityFramework to automatic signing
+        xcodebuild -project Unity-iPhone.xcodeproj -target UnityFramework -configuration Release CODE_SIGN_STYLE=Automatic DEVELOPMENT_TEAM=NDK28GDYKQ
 
     - name: Archive the app
       run: |
@@ -75,9 +81,9 @@ jobs:
           -archivePath build/output/Unity-iPhone.xcarchive \
           archive \
           CODE_SIGN_STYLE=Manual \
-          PROVISIONING_PROFILE_SPECIFIER=AAS-Distribution-profile \
+          PROVISIONING_PROFILE_SPECIFIER=AAS-Distribuiton-App-Store \
           DEVELOPMENT_TEAM=NDK28GDYKQ \
-          CODE_SIGN_IDENTITY="iPhone Distribution"
+          CODE_SIGN_IDENTITY="Apple Distribution"
 
     - name: Export IPA
       run: |
@@ -88,13 +94,13 @@ jobs:
         <plist version="1.0">
         <dict>
           <key>method</key>
-          <string>ad-hoc</string>
+          <string>app-store</string>
           <key>signingStyle</key>
           <string>manual</string>
           <key>provisioningProfiles</key>
           <dict>
             <key>com.epyphite.aas-companion-app</key>
-            <string>AAS-Distribution-profile</string>
+            <string>AAS-Distribuiton-App-Store</string>
           </dict>
           <key>teamID</key>
           <string>NDK28GDYKQ</string>
