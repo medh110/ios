@@ -76,7 +76,7 @@ jobs:
             desc "Build IPA from Unity Xcode project"
             lane :build_ipa do
               build_app(
-                project: "Unity-iPhone.xcodeproj",
+                project: "../build/iOS/iOS/Unity-iPhone.xcodeproj",
                 scheme: "Unity-iPhone",
                 export_method: "app-store",
                 export_options: {
