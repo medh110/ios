@@ -71,7 +71,7 @@ jobs:
       - name: Generate Fastfile
         run: |
           mkdir -p ios-fastlane/fastlane
-          default_platform(:ios)
+          echo 'default_platform(:ios)
           platform :ios do
             desc "Build IPA from Unity Xcode project"
             lane :build_ipa do
@@ -93,7 +93,7 @@ jobs:
                 output_name: "UnityApp.ipa"
               )
             end
-          end
+          end' > ios-fastlane/fastlane/Fastfile
 
       - name: Build IPA with Fastlane
         run: |
