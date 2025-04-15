@@ -1,123 +1,109 @@
-name: Build Unity iOS and Export IPA
+name: Build IOS APP
 
 on:
   push:
-    branches: [main]
-  workflow_dispatch:
+    branches:
+      - main
+    paths:
+      - 'Assets/**'
+      - 'Packages/**'
+      - 'ProjectSettings/**'
+      - '.github/**'
 
 jobs:
   build-ios:
     runs-on: macos-latest
-
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+          fetch-depth: 0
 
-    - name: Cache Unity
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/.cache/unity3d
-          ~/.local/share/unity3d
-        key: ${{ runner.os }}-unity
+      - name: Git LFS Pull
+        run: |
+          git lfs pull
+          git reset --hard
 
-    - name: Build iOS with Unity
-      uses: game-ci/unity-builder@v4
-      env:
-        UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
-        UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
-        UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
-      with:
-        targetPlatform: iOS
+      - name: Cache Library
+        uses: actions/cache@v4
+        with:
+          path: Library
+          key: Library-iOS-${{ hashFiles('Assets/**', 'Packages/**', 'ProjectSettings/**') }}
 
-    # ----------------------------
-    # CODE SIGNING SETUP
-    # ----------------------------
+      - name: Build iOS with Unity
+        uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          targetPlatform: iOS
 
-    - name: Install signing certificate
-      run: |
-        echo "$IOS_CERTIFICATE_BASE64" | base64 --decode > certificate.p12
-        security create-keychain -p "buildpass" build.keychain
-        security import certificate.p12 -k build.keychain -P "$CERT_PASSWORD" -T /usr/bin/codesign
-        security list-keychains -s build.keychain
-        security default-keychain -s build.keychain
-        security unlock-keychain -p "buildpass" build.keychain
-        security set-keychain-settings build.keychain
-      env:
-        IOS_CERTIFICATE_BASE64: ${{ secrets.IOS_P12_CERTIFICATE }}
-        CERT_PASSWORD: ${{ secrets.IOS_P12_PASSWORD }}
+      - name: Set up Ruby for Fastlane
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: 3.1
 
-    - name: Install provisioning profile
-      run: |
-        mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-        echo "$IOS_PROFILE_BASE64" | base64 --decode > ~/Library/MobileDevice/Provisioning\ Profiles/profile.mobileprovision
-      env:
-        IOS_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE }}
+      - name: Install Fastlane
+        run: gem install fastlane
 
-    # ----------------------------
-    # BUILD IPA WITH XCODEBUILD
-    # ----------------------------
+      - name: Install signing certificate
+        run: |
+          echo "$IOS_CERTIFICATE_BASE64" | base64 --decode > cert.p12
+          security create-keychain -p "buildpass" build.keychain
+          security import cert.p12 -k build.keychain -P "$CERT_PASSWORD" -T /usr/bin/codesign
+          security list-keychains -s build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "buildpass" build.keychain
+          security set-keychain-settings build.keychain
+        env:
+          IOS_CERTIFICATE_BASE64: ${{ secrets.IOS_P12_CERTIFICATE }}
+          CERT_PASSWORD: ${{ secrets.IOS_P12_PASSWORD }}
 
-    # - name: List build directory
-    #   run: |
-    #     ls -la
-    #     ls -la build/ || echo "No build directory"
-    #     find . -name "Unity-iPhone.xcodeproj" -type d
-        
-    # - name: Update UnityFramework signing settings
-    #   run: |
-    #     cd build/iOS/iOS
-    #     # Set UnityFramework to automatic signing
-    #     xcodebuild -project Unity-iPhone.xcodeproj -target UnityFramework -configuration Release CODE_SIGN_STYLE=Automatic DEVELOPMENT_TEAM=NDK28GDYKQ
+      - name: Install provisioning profile
+        run: |
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          echo "$IOS_PROFILE_BASE64" | base64 --decode > ~/Library/MobileDevice/Provisioning\ Profiles/profile.mobileprovision
+        env:
+          IOS_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE }}
 
-    - name: Archive the app
-      run: |
-        mkdir -p build/output
+      - name: Generate Fastfile
+        run: |
+          mkdir -p ios-fastlane/fastlane
+          default_platform(:ios)
+          platform :ios do
+            desc "Build IPA from Unity Xcode project"
+            lane :build_ipa do
+              build_app(
+                project: "Unity-iPhone.xcodeproj",
+                scheme: "Unity-iPhone",
+                export_method: "app-store",
+                export_options: {
+                  method: "app-store",
+                  provisioningProfiles: {
+                    "com.epyphite.aas-companion-app" => "AAS-Distribuiton-App-Store"
+                  },
+                  signingStyle: "manual",
+                  signingCertificate: "Apple Distribution",
+                  teamID: "NDK28GDYKQ"
+                },
+                clean: true,
+                output_directory: "./output",
+                output_name: "UnityApp.ipa"
+              )
+            end
+          end
 
-        xcodebuild \
-          -project build/iOS/iOS/Unity-iPhone.xcodeproj \
-          -scheme Unity-iPhone \
-          -configuration Release \
-          -archivePath build/output/Unity-iPhone.xcarchive \
-          archive \
-          CODE_SIGN_STYLE=Manual \
-          PROVISIONING_PROFILE_SPECIFIER=AAS-Distribuiton-App-Store \
-          DEVELOPMENT_TEAM=NDK28GDYKQ \
-          CODE_SIGN_IDENTITY="Apple Distribution"
+      - name: Build IPA with Fastlane
+        run: |
+          cd ios-fastlane
+          fastlane build_ipa
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
-    - name: Export IPA
-      run: |
-        cat <<EOF > ExportOptions.plist
-        <?xml version="1.0" encoding="UTF-8"?>
-        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" \
-        "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-        <plist version="1.0">
-        <dict>
-          <key>method</key>
-          <string>app-store</string>
-          <key>signingStyle</key>
-          <string>manual</string>
-          <key>provisioningProfiles</key>
-          <dict>
-            <key>com.epyphite.aas-companion-app</key>
-            <string>AAS-Distribuiton-App-Store</string>
-          </dict>
-          <key>teamID</key>
-          <string>NDK28GDYKQ</string>
-          <key>compileBitcode</key>
-          <false/>
-        </dict>
-        </plist>
-        EOF
-
-        xcodebuild \
-          -exportArchive \
-          -archivePath build/output/Unity-iPhone.xcarchive \
-          -exportOptionsPlist ExportOptions.plist \
-          -exportPath build/output
-
-    - name: Upload .ipa artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: Unity-iOS-App
-        path: build/output/*.ipa
+      - name: Upload IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: iOS-IPA
+          path: ios-fastlane/output/UnityApp.ipa
