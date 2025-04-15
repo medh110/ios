@@ -64,11 +64,11 @@ jobs:
     #     ls -la build/ || echo "No build directory"
     #     find . -name "Unity-iPhone.xcodeproj" -type d
         
-    - name: Update UnityFramework signing settings
-      run: |
-        cd build/iOS/iOS
-        # Set UnityFramework to automatic signing
-        xcodebuild -project Unity-iPhone.xcodeproj -target UnityFramework -configuration Release CODE_SIGN_STYLE=Automatic DEVELOPMENT_TEAM=NDK28GDYKQ
+    # - name: Update UnityFramework signing settings
+    #   run: |
+    #     cd build/iOS/iOS
+    #     # Set UnityFramework to automatic signing
+    #     xcodebuild -project Unity-iPhone.xcodeproj -target UnityFramework -configuration Release CODE_SIGN_STYLE=Automatic DEVELOPMENT_TEAM=NDK28GDYKQ
 
     - name: Archive the app
       run: |
