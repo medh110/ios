@@ -58,17 +58,18 @@ jobs:
     # BUILD IPA WITH XCODEBUILD
     # ----------------------------
 
-    - name: Install CocoaPods (optional)
+    - name: List build directory
       run: |
-        cd build/iOS
-        pod install || echo "No Podfile"
+        ls -la
+        ls -la build/ || echo "No build directory"
+        find . -name "Unity-iPhone.xcodeproj" -type d
 
     - name: Archive the app
       run: |
         mkdir -p build/output
 
         xcodebuild \
-          -workspace build/iOS/Unity-iPhone.xcworkspace \
+          -workspace build/iOS/Unity-iPhone.xcodeproj \
           -scheme Unity-iPhone \
           -configuration Release \
           -archivePath build/output/Unity-iPhone.xcarchive \
