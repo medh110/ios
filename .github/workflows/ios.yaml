@@ -120,7 +120,7 @@ jobs:
           cd build/iOS/iOS
           /usr/libexec/PlistBuddy -c "Add :BuildProperties:ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES string YES" ./Info.plist
           fastlane run update_code_signing_settings use_automatic_signing:false team_id:"$APPLE_TEAM_ID" code_sign_identity:"iPhone Distribution" bundle_identifier:"com.epyphite.aas-companion-app" profile_name:"AAS-Distribution-profile" path:"Unity-iPhone.xcodeproj" targets:"Unity-iPhone"
-          fastlane run update_project_team team_id:"$APPLE_TEAM_ID" targets:"Unity-iPhone,UnityFramework"
+          fastlane run update_project_team teamid:"$APPLE_TEAM_ID" targets:"Unity-iPhone,UnityFramework"
           fastlane run update_build_settings xcodeproj:"Unity-iPhone.xcodeproj" use_swift_standard_libraries:"YES" swift_version:"5.0"
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
