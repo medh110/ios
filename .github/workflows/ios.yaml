@@ -81,18 +81,7 @@ jobs:
           cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles
           ls ~/Library/MobileDevice/Provisioning\ Profiles/
 
-      # - name: 🔍 Verify certificate and provisioning profile
-      #   run: |
-      #     echo "🔐 Certificate Info:"
-      #     openssl pkcs12 -in "$RUNNER_TEMP/build_certificate.p12" -nodes -passin pass:"$P12_PASSWORD" | openssl x509 -noout -subject -issuer -dates
-      
-      #     echo "📱 Provisioning Profile Info:"
-      #     security cms -D -i "$RUNNER_TEMP/build_pp.mobileprovision" > "$RUNNER_TEMP/profile.plist"
-      #     plutil -p "$RUNNER_TEMP/profile.plist" | grep -E '"Name"|application-identifier|UUID|TeamIdentifier'
-      #   env:
-      #     P12_PASSWORD: ${{ secrets.IOS_P12_PASSWORD }}
-
-      - name: Force Manual Signing in Xcode project
+      - name: Use Automatic Signing in Xcode project
         run: |
           ruby <<'RUBY'
             require 'xcodeproj'
@@ -103,11 +92,10 @@ jobs:
             project.targets.each do |target|
               next if target.name == 'UnityFramework'
               target.build_configurations.each do |config|
-                config.build_settings['CODE_SIGN_STYLE'] = 'Manual'
+                config.build_settings['CODE_SIGN_STYLE'] = 'Automatic'
+                config.build_settings.delete('PROVISIONING_PROFILE_SPECIFIER')
+                config.build_settings.delete('CODE_SIGN_IDENTITY')
                 config.build_settings['DEVELOPMENT_TEAM'] = 'NDK28GDYKQ'
-                config.build_settings['CODE_SIGN_IDENTITY'] = 'Apple Distribution'
-                config.build_settings['PROVISIONING_PROFILE_SPECIFIER'] = 'AAS-Distribuiton-App-Store'
-
               end
             end
 
@@ -127,16 +115,11 @@ jobs:
                 export_method: "app-store",
                 export_options: {
                   method: "app-store",
-                  provisioningProfiles: {
-                    "com.epyphite.aas-companion-app" => "AAS-Distribuiton-App-Store"
-                  },
-                  signingStyle: "manual",
-                  signingCertificate: "Apple Distribution",
+                  signingStyle: "automatic",
                   teamID: "NDK28GDYKQ"
                 },
                 clean: true,
                 output_directory: "./output",
-                xcargs: "CODE_SIGN_IDENTITY=\"Apple Distribution\" PROVISIONING_PROFILE_SPECIFIER=\"AAS-Distribuiton-App-Store\" DEVELOPMENT_TEAM=NDK28GDYKQ",
                 output_name: "UnityApp.ipa"
               )
             end
@@ -148,8 +131,6 @@ jobs:
           fastlane build_ipa
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-
-      
 
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
