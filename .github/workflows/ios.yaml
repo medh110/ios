@@ -136,7 +136,8 @@ jobs:
                 },
                 clean: true,
                 output_directory: "./output",
-                output_name: "UnityApp.ipa"
+                output_name: "UnityApp.ipa",
+                app_identifier: "com.epyphite.aas-companion-app"
               )
             end
           end' > ios-fastlane/fastlane/Fastfile
