@@ -119,6 +119,7 @@ jobs:
                   teamID: "NDK28GDYKQ"
                 },
                 clean: true,
+                xcargs: "-allowProvisioningUpdates",
                 output_directory: "./output",
                 output_name: "UnityApp.ipa"
               )
