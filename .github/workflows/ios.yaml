@@ -136,8 +136,8 @@ jobs:
                 },
                 clean: true,
                 output_directory: "./output",
-                output_name: "UnityApp.ipa",
-                app_identifier: "com.epyphite.aas-companion-app"
+                xcargs: "CODE_SIGN_IDENTITY=\"Apple Distribution\" PROVISIONING_PROFILE_SPECIFIER=\"AAS-Distribuiton-App-Store\" DEVELOPMENT_TEAM=NDK28GDYKQ",
+                output_name: "UnityApp.ipa"
               )
             end
           end' > ios-fastlane/fastlane/Fastfile
@@ -148,6 +148,8 @@ jobs:
           fastlane build_ipa
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+      
 
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
