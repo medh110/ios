@@ -77,6 +77,18 @@ jobs:
           # apply provisioning profile
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles
+          ls ~/Library/MobileDevice/Provisioning\ Profiles/
+
+      - name: 🔍 Verify certificate and provisioning profile
+        run: |
+          echo "🔐 Certificate Info:"
+          openssl pkcs12 -in "$RUNNER_TEMP/build_certificate.p12" -nodes -passin pass:"$P12_PASSWORD" | openssl x509 -noout -subject -issuer -dates
+      
+          echo "📱 Provisioning Profile Info:"
+          security cms -D -i "$RUNNER_TEMP/build_pp.mobileprovision" > "$RUNNER_TEMP/profile.plist"
+          plutil -p "$RUNNER_TEMP/profile.plist" | grep -E '"Name"|application-identifier|UUID|TeamIdentifier'
+        env:
+          P12_PASSWORD: ${{ secrets.IOS_P12_PASSWORD }}
 
       - name: Generate Fastfile
         run: |
@@ -100,7 +112,8 @@ jobs:
                 },
                 clean: true,
                 output_directory: "./output",
-                output_name: "UnityApp.ipa"
+                output_name: "UnityApp.ipa",
+                xcargs: "CODE_SIGN_IDENTITY=\"Apple Distribution\" PROVISIONING_PROFILE_SPECIFIER=\"AAS-Distribuiton-App-Store\" DEVELOPMENT_TEAM=NDK28GDYKQ"
               )
             end
           end' > ios-fastlane/fastlane/Fastfile
