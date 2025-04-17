@@ -12,14 +12,17 @@ on:
 
 jobs:
   build-ios:
-    runs-on: macos-latest
+    runs-on: macos-14
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           lfs: true
           fetch-depth: 0
-          
+
+      - name: Select Xcode 16.3
+        run: sudo xcode-select -s /Applications/Xcode_16.3.app
+        
       - name: Delete Assets/Videos folder before Unity build
         run: |
           echo "Removing Assets/Videos directory to prevent import errors"
@@ -91,7 +94,7 @@ jobs:
             project = Xcodeproj::Project.open(project_path)
           
             project.targets.each do |target|
-              next if target.name == 'UnityFramework' # ⛔️ skip UnityFramework
+              next if target.name == 'UnityFramework' 
           
               puts "Setting manual signing for target: #{target.name}"
               target.build_configurations.each do |config|
