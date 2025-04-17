@@ -53,7 +53,7 @@ jobs:
       - name: Install Fastlane and xcodeproj
         run: |
           gem install fastlane
-          # gem install xcodeproj
+          gem install xcodeproj
 
       - name: Install the Apple certificate and provisioning profile
         env:
@@ -89,15 +89,17 @@ jobs:
  
             project_path = 'build/iOS/iOS/Unity-iPhone.xcodeproj'
             project = Xcodeproj::Project.open(project_path)
- 
             project.targets.each do |target|
-              next if target.name == 'UnityFramework'
+              puts "Setting manual signing for target: #{target.name}"
               target.build_configurations.each do |config|
                 config.build_settings['CODE_SIGN_STYLE'] = 'Manual'
                 config.build_settings['DEVELOPMENT_TEAM'] = 'NDK28GDYKQ'
                 config.build_settings['CODE_SIGN_IDENTITY'] = 'Apple Distribution'
                 config.build_settings['PROVISIONING_PROFILE_SPECIFIER'] = 'AAS-Distribuiton-App-Store'
- 
+                
+                # Remove any automatic signing settings that might cause conflicts
+                config.build_settings.delete('CODE_SIGN_IDENTITY[sdk=iphoneos*]')
+                config.build_settings.delete('PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]')
               end
             end
  
