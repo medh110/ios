@@ -55,7 +55,7 @@ jobs:
         run: |
           mkdir -p ios-fastlane
           echo 'source "https://rubygems.org"
-          gem "fastlane", "~> 2.227.1"
+          gem "fastlane", "2.220.0"
           gem "faraday", ">= 1.10.3", "< 2.0"
           gem "xcodeproj"' > ios-fastlane/Gemfile
 
@@ -63,6 +63,7 @@ jobs:
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: 3.1
+          bundler: '2.5.22'
           bundler-cache: true
 
       - name: Install Fastlane using Bundler
