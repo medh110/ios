@@ -55,7 +55,7 @@ jobs:
         run: |
           mkdir -p ios-fastlane
           echo 'source "https://rubygems.org"
-          gem "fastlane", "2.220.0"
+          gem "fastlane"
           gem "faraday", ">= 1.10.3", "< 2.0"
           gem "xcodeproj"' > ios-fastlane/Gemfile
 
@@ -69,6 +69,7 @@ jobs:
       - name: Install Fastlane using Bundler
         run: |
           cd ios-fastlane
+          bundle update fastlane
           bundle install
 
       - name: Install the Apple certificate and provisioning profile
