@@ -56,7 +56,7 @@ jobs:
           mkdir -p ios-fastlane
           echo 'source "https://rubygems.org"
           gem "fastlane"
-          # gem "faraday", ">= 1.10.3", "< 2.0"
+          gem "faraday", ">= 1.10.3", "< 2.0"
           gem "xcodeproj"' > ios-fastlane/Gemfile
 
       - name: Set up Ruby for Fastlane
@@ -144,7 +144,7 @@ jobs:
             end
           
             desc "Upload to TestFlight"
-            lane :upload_to_testflight do
+            lane :deploy_to_testflight do
               app_store_connect_api_key(
                 key_id: ENV["APPSTORE_API_KEY_ID"],
                 issuer_id: ENV["APPSTORE_ISSUER_ID"],
@@ -175,7 +175,7 @@ jobs:
       - name: Upload to TestFlight with Fastlane
         run: |
           cd ios-fastlane
-          bundle exec fastlane upload_to_testflight
+          bundle exec fastlane deploy_to_testflight
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           APPSTORE_API_KEY_ID: ${{ vars.APPSTORE_API_KEY_ID }}
