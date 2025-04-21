@@ -56,7 +56,7 @@ jobs:
           mkdir -p ios-fastlane
           echo 'source "https://rubygems.org"
           gem "fastlane", "~> 2.227.1"
-          gem "faraday", "< 1.10"
+          gem "faraday", ">= 1.10.3", "< 2.0"
           gem "xcodeproj"' > ios-fastlane/Gemfile
 
       - name: Set up Ruby for Fastlane
