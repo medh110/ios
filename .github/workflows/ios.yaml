@@ -69,8 +69,8 @@ jobs:
       - name: Install Fastlane using Bundler
         run: |
           cd ios-fastlane
-          bundle update fastlane
           bundle install
+          bundle update fastlane
 
       - name: Install the Apple certificate and provisioning profile
         env:
