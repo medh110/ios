@@ -172,12 +172,24 @@ jobs:
           name: iOS-IPA
           path: ios-fastlane/output/UnityApp.ipa
 
+      # - name: Upload to TestFlight with Fastlane
+      #   run: |
+      #     cd ios-fastlane
+      #     bundle exec fastlane deploy_to_testflight
+      #   env:
+      #     APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      #     APPSTORE_API_KEY_ID: ${{ vars.APPSTORE_API_KEY_ID }}
+      #     APPSTORE_ISSUER_ID: ${{ vars.APPSTORE_ISSUER_ID }}
+      #     APPSTORE_API_PRIVATE_KEY: ${{ secrets.APPSTORE_API_PRIVATE_KEY }}
       - name: Upload to TestFlight with Fastlane
         run: |
-          cd ios-fastlane
-          bundle exec fastlane deploy_to_testflight
-        env:
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          APPSTORE_API_KEY_ID: ${{ vars.APPSTORE_API_KEY_ID }}
-          APPSTORE_ISSUER_ID: ${{ vars.APPSTORE_ISSUER_ID }}
-          APPSTORE_API_PRIVATE_KEY: ${{ secrets.APPSTORE_API_PRIVATE_KEY }}
+         cd ios-fastlane/output
+         ls
+
+      - name: 'Upload app to TestFlight'
+        uses: apple-actions/upload-testflight-build@v1
+        with:
+          app-path: 'ios-fastlane/output/UnityApp.ipa'
+          issuer-id: ${{ secrets.APPSTORE_ISSUER_ID }}
+          api-key-id: ${{ secrets.APPSTORE_API_KEY_ID }}
+          api-private-key: ${{ secrets.APPSTORE_API_PRIVATE_KEY }}
